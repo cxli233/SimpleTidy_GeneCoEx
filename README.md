@@ -97,8 +97,8 @@ Oftentimes, we are aware of some "bait genes", genes that are previously implica
 
 In this example, we have two bait genes, `PG` and `PSY1`. 
 
-* `PG` is involved in making the fruit soft [review](https://www.annualreviews.org/doi/pdf/10.1146/annurev.pp.42.060191.003331).
-* `PSY1` is involved in producing the red color of the fruit [ref](https://link.springer.com/article/10.1007/BF00047400). 
+* `PG` is involved in making the fruit soft [(review)](https://www.annualreviews.org/doi/pdf/10.1146/annurev.pp.42.060191.003331).
+* `PSY1` is involved in producing the red color of the fruit [(ref)](https://link.springer.com/article/10.1007/BF00047400). 
 
 ```{r}
 Baits <- read_delim("../Data/Genes_of_interest.txt", delim = "\t", col_names = F, col_types = cols())
@@ -559,7 +559,7 @@ I have two ways to do this.
 
 ### t distribution approximation. 
 It turns out for each correlation coeff. r, you can approximate a t statistics, under some arbitrary assumptions. 
-The equation is $$ t = r * \sqrt{(n-2) \over (1-r^2)} $$, where n is the number of observations. 
+The equation is $t = r * \sqrt{(n-2) \over (1-r^2)}$, where n is the number of observations. 
 In this case, n is the number of tissue by stage combinations going into the correlation. Let's compute that first.
 
 ```{r}
