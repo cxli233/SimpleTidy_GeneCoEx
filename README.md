@@ -970,3 +970,413 @@ my_network_modules %>%
 ```
 It looks like they are in the same module, very good to see. 
 Remember, they are correlated with a r > 0.7; they should be in the same module. 
+
+## Module-treatment correspondance
+The next key task is understanding the expression pattern of the clusters. 
+Again, the essence of this workflow is simple, so we will use a simple method: peak expression.
+To do that, we append the module membership data back to the long table containing z scores.
+
+```{r}
+Exp_table_long_averaged_z_high_var_modules <- Exp_table_long_averaged_z_high_var %>% 
+  inner_join(my_network_modules, by = "gene_ID")
+
+head(Exp_table_long_averaged_z_high_var_modules)
+```
+Now we can produce summary statistics for each cluster and look at their expression pattern using mean. 
+
+```{r}
+modules_mean_z <- Exp_table_long_averaged_z_high_var_modules %>% 
+  group_by(module, dev_stage, tissue, `Sample Name`) %>% 
+  summarise(mean.z = mean(z.score)) %>% 
+  ungroup()
+
+head(modules_mean_z)
+```
+
+Then we look at at which developmental stage and tissue is each module most highly expressed. 
+```{r}
+module_peak_exp <- modules_mean_z %>% 
+  group_by(module) %>% 
+  slice_max(order_by = mean.z, n = 1)
+
+module_peak_exp
+```
+
+### More module QC
+You can also QC the clusters via a line graph 
+It will be too much to look at if graph all the modules, so let's just pick 2. 
+
+I picked: 
+
+* module 4, which is most highly expressed in 5 DPA - an early expressing cluster.
+* module 8, where our bait genes are - a late expressing cluster. 
+
+```{r}
+module_line_plot <- Exp_table_long_averaged_z_high_var_modules %>% 
+  mutate(order_x = case_when(
+    str_detect(dev_stage, "5") ~ 1,
+    str_detect(dev_stage, "10") ~ 2,
+    str_detect(dev_stage, "20") ~ 3,
+    str_detect(dev_stage, "30") ~ 4,
+    str_detect(dev_stage, "MG") ~ 5,
+    str_detect(dev_stage, "Br") ~ 6,
+    str_detect(dev_stage, "Pk") ~ 7,
+    str_detect(dev_stage, "LR") ~ 8,
+    str_detect(dev_stage, "RR") ~ 9
+  )) %>% 
+  mutate(dev_stage = reorder(dev_stage, order_x)) %>% 
+  filter(module == "8" |
+           module == "4") %>% 
+  ggplot(aes(x = dev_stage, y = z.score)) +
+  facet_grid(module ~ tissue) +
+  geom_line(aes(group = gene_ID), alpha = 0.3, color = "grey70") +
+  geom_line(
+    data = modules_mean_z %>% 
+      filter(module == "8" |
+               module == "4") %>% 
+      mutate(order_x = case_when(
+        str_detect(dev_stage, "5") ~ 1,
+        str_detect(dev_stage, "10") ~ 2,
+        str_detect(dev_stage, "20") ~ 3,
+        str_detect(dev_stage, "30") ~ 4,
+        str_detect(dev_stage, "MG") ~ 5,
+        str_detect(dev_stage, "Br") ~ 6,
+        str_detect(dev_stage, "Pk") ~ 7,
+        str_detect(dev_stage, "LR") ~ 8,
+        str_detect(dev_stage, "RR") ~ 9
+  )) %>% 
+  mutate(dev_stage = reorder(dev_stage, order_x)),
+    aes(y = mean.z, group = module), 
+   size = 1.1, alpha = 0.8
+  ) +
+  labs(x = NULL,
+       y = "z score") +
+  theme_classic() +
+  theme(
+    text = element_text(size = 14),
+    axis.text = element_text(color = "black"),
+    axis.text.x = element_blank(),
+    panel.spacing = unit(1, "line")
+  )
+
+module_lines_color_strip <- expand.grid(
+  tissue = unique(Metadata$tissue),
+  dev_stage = unique(Metadata$dev_stage), 
+  stringsAsFactors = F
+) %>% 
+  filter(dev_stage != "Anthesis") %>% 
+  filter(str_detect(tissue, "epider|chyma|Vasc") == F) %>% 
+  mutate(order_x = case_when(
+        str_detect(dev_stage, "5") ~ 1,
+        str_detect(dev_stage, "10") ~ 2,
+        str_detect(dev_stage, "20") ~ 3,
+        str_detect(dev_stage, "30") ~ 4,
+        str_detect(dev_stage, "MG") ~ 5,
+        str_detect(dev_stage, "Br") ~ 6,
+        str_detect(dev_stage, "Pk") ~ 7,
+        str_detect(dev_stage, "LR") ~ 8,
+        str_detect(dev_stage, "RR") ~ 9
+  )) %>% 
+  mutate(stage = case_when(
+    str_detect(dev_stage, "MG|Br|Pk") ~ str_sub(dev_stage, start = 1, end = 2),
+    T ~ dev_stage
+  )) %>% 
+  mutate(stage = factor(stage, levels = c(
+   "5 DPA",
+   "10 DPA",
+   "20 DPA",
+   "30 DPA",
+   "MG",
+   "Br",
+   "Pk",
+   "LR",
+   "RR"
+  ))) %>% 
+  mutate(dev_stage = reorder(dev_stage, order_x)) %>% 
+  ggplot(aes(x = dev_stage, y = 1)) +
+  facet_grid(. ~ tissue) +
+  geom_tile(aes(fill = stage)) +
+  scale_fill_manual(values = viridis(9, option = "D")) +
+  theme_void() +
+  theme(
+    legend.position = "bottom",
+    strip.text = element_blank(),
+    text = element_text(size = 14),
+    panel.spacing = unit(1, "lines")
+  )
+
+wrap_plots(module_line_plot, module_lines_color_strip,
+           nrow = 2, heights = c(1, 0.08))
+
+ggsave("../Results/module_line_plots.svg", height = 4, width = 8.2, bg = "white")
+ggsave("../Results/module_line_plots.png", height = 4, width = 8.2, bg = "white")
+```
+
+![module_line_plots.svg](https://github.com/cxli233/SimpleTidy_GeneCoEx/blob/main/Results/module_line_plots.svg)
+
+This code chunk is very long, because a few things:
+
+1. I reordered x-axis to reflect the biological time sequence
+2. Overlaid the average of clusters
+3. Added a color strip at the bottom to annotate stages, which reduces the amount of text on the figure. 
+
+There is obviously a lot of noice, but the pattern is apparent.
+
+### Heat map representation of clusters 
+A good way to present these modules is to make a heat map. 
+To make an effective heatmap though, we need to take care of a few things.
+
+* reorder x and y axis
+* take care of outliers 
+
+#### Check outliers 
+Let's take care of outliers first 
+```{r}
+modules_mean_z$mean.z %>% summary()
+```
+
+```
+#  Min. 1st Qu.  Median    Mean 3rd Qu.    Max. 
+# -1.7844 -0.6261 -0.2213  0.0000  0.6420  3.3779 
+```
+You can see that the distribution of averaged z scores are more or less symmetrical from the 1st to 3rd quartiles. 
+```{r}
+quantile(modules_mean_z$mean.z, 0.95)
+```
+
+```
+#      95% 
+# 1.482264
+```
+The 95th percentile of averaged z score is 1.48. We can probably roughly clipped the z-scores at 1.5 or -1.5
+
+```{r}
+modules_mean_z <- modules_mean_z %>% 
+  mutate(mean.z.clipped = case_when(
+    abs(mean.z) > 1.5 ~ 1.5,
+    T ~ mean.z
+  ))
+```
+
+This sets z scores > 1.5 or < -1.5 to 1.5 or 1.5. The rest remain unchanged.
+
+#### Reorder rows and columns 
+Let's say we graph modules on y axis, and stage/tissue on x-axis.
+Reordering columns are easy, we just do it by hand. 
+We already did it before. We can copy and paste that down here.
+```{r}
+modules_mean_z <- modules_mean_z %>% 
+  mutate(order_x = case_when(
+        str_detect(dev_stage, "5") ~ 1,
+        str_detect(dev_stage, "10") ~ 2,
+        str_detect(dev_stage, "20") ~ 3,
+        str_detect(dev_stage, "30") ~ 4,
+        str_detect(dev_stage, "MG") ~ 5,
+        str_detect(dev_stage, "Br") ~ 6,
+        str_detect(dev_stage, "Pk") ~ 7,
+        str_detect(dev_stage, "LR") ~ 8,
+        str_detect(dev_stage, "RR") ~ 9
+  )) %>%  
+  mutate(stage = case_when(
+    str_detect(dev_stage, "MG|Br|Pk") ~ str_sub(dev_stage, start = 1, end = 2),
+    T ~ dev_stage
+  )) %>% 
+  mutate(stage = factor(stage, levels = c(
+   "5 DPA",
+   "10 DPA",
+   "20 DPA",
+   "30 DPA",
+   "MG",
+   "Br",
+   "Pk",
+   "LR",
+   "RR"
+  ))) %>% 
+  mutate(dev_stage = reorder(dev_stage, order_x)) 
+
+head(modules_mean_z)
+```
+Ordering rows is not as straightforward.
+What I usually do is I reorder the rows based on their peak expression.
+We use the `module_peak_exp` table that we already made.
+
+```{r}
+module_peak_exp <- module_peak_exp %>% 
+  mutate(order_y = case_when(
+        str_detect(dev_stage, "5") ~ 1,
+        str_detect(dev_stage, "10") ~ 2,
+        str_detect(dev_stage, "20") ~ 3,
+        str_detect(dev_stage, "30") ~ 4,
+        str_detect(dev_stage, "MG") ~ 5,
+        str_detect(dev_stage, "Br") ~ 6,
+        str_detect(dev_stage, "Pk") ~ 7,
+        str_detect(dev_stage, "LR") ~ 8,
+        str_detect(dev_stage, "RR") ~ 9
+  )) %>%  
+  mutate(peak_exp = reorder(dev_stage, order_y)) 
+
+modules_mean_z_reorded <- modules_mean_z %>% 
+  full_join(module_peak_exp %>% 
+              select(module, peak_exp, order_y), by = c("module")) %>% 
+  mutate(module = reorder(module, -order_y))
+
+head(modules_mean_z_reorded)
+```
+
+Because we know developmental stage is the major driver of variance in this dataset, so I only reordered the rows by peak expression across developmental stages, rather than both developmental stages and tissues.
+
+```{r}
+module_heatmap <- modules_mean_z_reorded %>% 
+  ggplot(aes(x = tissue, y = as.factor(module))) +
+  facet_grid(.~ dev_stage, scales = "free", space = "free") +
+  geom_tile(aes(fill = mean.z.clipped), color = "grey80") +
+  scale_fill_gradientn(colors = rev(brewer.pal(11, "RdBu")), limits = c(-1.5, 1.5),
+                       breaks = c(-1.5, 0, 1.5), labels = c("< -1.5", "0", "> 1.5")) +
+  labs(x = NULL,
+       y = "Module",
+       fill = "z score") +
+  theme_classic() +
+  theme(
+    text = element_text(size = 14),
+    axis.text = element_text(color = "black"),
+    axis.text.x = element_blank(),
+    strip.text = element_blank(),
+    legend.position = "top",
+    panel.spacing = unit(0.5, "lines") 
+  )
+
+heatmap_color_strip1 <- expand.grid(
+  tissue = unique(Metadata$tissue),
+  dev_stage = unique(Metadata$dev_stage), 
+  stringsAsFactors = F
+) %>% 
+  filter(dev_stage != "Anthesis") %>% 
+  filter(str_detect(tissue, "epider|chyma|Vasc") == F) %>% 
+  filter((dev_stage == "5 DPA" &
+           str_detect(tissue, "Locular tissue|Placenta|Seeds"))==F) %>% 
+  filter((str_detect(dev_stage, "styla") &
+           str_detect(tissue, "Colum"))==F) %>% 
+  mutate(order_x = case_when(
+        str_detect(dev_stage, "5") ~ 1,
+        str_detect(dev_stage, "10") ~ 2,
+        str_detect(dev_stage, "20") ~ 3,
+        str_detect(dev_stage, "30") ~ 4,
+        str_detect(dev_stage, "MG") ~ 5,
+        str_detect(dev_stage, "Br") ~ 6,
+        str_detect(dev_stage, "Pk") ~ 7,
+        str_detect(dev_stage, "LR") ~ 8,
+        str_detect(dev_stage, "RR") ~ 9
+  )) %>% 
+  mutate(stage = case_when(
+    str_detect(dev_stage, "MG|Br|Pk") ~ str_sub(dev_stage, start = 1, end = 2),
+    T ~ dev_stage
+  )) %>% 
+  mutate(stage = factor(stage, levels = c(
+   "5 DPA",
+   "10 DPA",
+   "20 DPA",
+   "30 DPA",
+   "MG",
+   "Br",
+   "Pk",
+   "LR",
+   "RR"
+  ))) %>% 
+  mutate(dev_stage = reorder(dev_stage, order_x)) %>% 
+  ggplot(aes(x = tissue, y = 1)) +
+  facet_grid(.~ dev_stage, scales = "free", space = "free") +
+  geom_tile(aes(fill = tissue)) +
+  scale_fill_manual(values = brewer.pal(8, "Set2")) +
+  guides(fill = guide_legend(nrow = 1)) +
+  theme_void() +
+  theme(
+    legend.position = "bottom",
+    strip.text = element_blank(),
+    text = element_text(size = 14),
+    panel.spacing = unit(0.5, "lines"),
+    legend.key.height = unit(0.75, "lines")
+  )
+
+heatmap_color_strip2 <- expand.grid(
+  tissue = unique(Metadata$tissue),
+  dev_stage = unique(Metadata$dev_stage), 
+  stringsAsFactors = F
+) %>% 
+  filter(dev_stage != "Anthesis") %>% 
+  filter(str_detect(tissue, "epider|chyma|Vasc") == F) %>% 
+  filter((dev_stage == "5 DPA" &
+           str_detect(tissue, "Locular tissue|Placenta|Seeds"))==F) %>% 
+  filter((str_detect(dev_stage, "styla") &
+           str_detect(tissue, "Colum"))==F) %>% 
+  mutate(order_x = case_when(
+        str_detect(dev_stage, "5") ~ 1,
+        str_detect(dev_stage, "10") ~ 2,
+        str_detect(dev_stage, "20") ~ 3,
+        str_detect(dev_stage, "30") ~ 4,
+        str_detect(dev_stage, "MG") ~ 5,
+        str_detect(dev_stage, "Br") ~ 6,
+        str_detect(dev_stage, "Pk") ~ 7,
+        str_detect(dev_stage, "LR") ~ 8,
+        str_detect(dev_stage, "RR") ~ 9
+  )) %>% 
+  mutate(stage = case_when(
+    str_detect(dev_stage, "MG|Br|Pk") ~ str_sub(dev_stage, start = 1, end = 2),
+    T ~ dev_stage
+  )) %>% 
+  mutate(stage = factor(stage, levels = c(
+   "5 DPA",
+   "10 DPA",
+   "20 DPA",
+   "30 DPA",
+   "MG",
+   "Br",
+   "Pk",
+   "LR",
+   "RR"
+  ))) %>% 
+  mutate(dev_stage = reorder(dev_stage, order_x)) %>% 
+  ggplot(aes(x = tissue, y = 1)) +
+  facet_grid(.~ dev_stage, scales = "free", space = "free") +
+  geom_tile(aes(fill = stage)) +
+  scale_fill_manual(values = viridis(9, option = "D")) +
+  labs(fill = "stage") +
+  guides(fill = guide_legend(nrow = 1)) +
+  theme_void() +
+  theme(
+    legend.position = "bottom",
+    strip.text = element_blank(),
+    text = element_text(size = 14),
+    panel.spacing = unit(0.5, "lines"),
+    legend.key.height = unit(0.75, "lines")
+  )
+
+
+wrap_plots(module_heatmap, heatmap_color_strip1, heatmap_color_strip2, 
+           nrow = 3, heights = c(1, 0.08, 0.08), guides = "collect") &
+  theme(
+    legend.position = "bottom",
+    legend.box = "vertical"
+  )
+
+ggsave("../Results/module_heatmap.svg", height = 4.8, width = 10, bg = "white")
+ggsave("../Results/module_heatmap.png", height = 4.8, width = 10, bg = "white")
+```
+![module_heatmap.svg](https://github.com/cxli233/SimpleTidy_GeneCoEx/blob/main/Results/module_heatmap.svg)
+When the rows and columns are re-orded, you can trace the signal down the diagonal from upper left to lower right. 
+I also added two color strips at the bottom to annotate the tissues and stages. 
+The fruit ripening genes, which are captured by module 8, don't really kick in until Br stage or later. 
+
+## Gene co-expression graphs 
+A common data visualization for gene co-expression analyses is network graphs. 
+We will be using `ggraph`, a `ggplot` extension of `igraph`. 
+
+Our network has almost 5000 genes and more than 1 million edges. 
+It's too much to look at if we graph the full network. 
+On the other hand, there is not much to look at anyway for very large networks. 
+You just get messy hairballs. 
+
+Say we want to look at genes directly co-expressed with our one of our bait genes, PG 
+We can pull out their neighbors using the `neighbors()` function within `igraph()`.
+`igraph` comes with a set of network analysis functions that we can call. 
+
+
