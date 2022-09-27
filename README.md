@@ -1,6 +1,10 @@
 # Simple Tidy GeneCoEx 
 A simple gene co-expression analyses workflow powered by tidyverse and graph analyses
 
+![module heatmap](https://github.com/cxli233/SimpleTidy_GeneCoEx/blob/main/Results/module_heatmap.svg)
+
+# Table of Contents
+
 
 # Introduction 
 This is a gene co-expression analysis workflow powered by tidyverse and graph analyses. 
@@ -1383,20 +1387,16 @@ We can pull out their neighbors using the `neighbors()` function within `igraph(
 For the sake of this example, let's just a couple genes from other clusters as well. 
 ```{r}
 neighbors_of_bait <- c(
-  neighbors(my_network, v = "Solly.M82.10G020850.1"), # PG
-  neighbors(my_network, v = "Solly.M82.03G005440.1"), # PSY1 
-  neighbors(my_network, v = "Solly.M82.01G041430.1"), # Module 4 - early fruit - SAUR
-  neighbors(my_network, v = "Solly.M82.03G024180.1") # Module 9 - seed specific - "oleosin"
+  neighbors(my_network, v = "Solly.M82.10G020850.1") %>% sample(50), # PG
+  neighbors(my_network, v = "Solly.M82.03G005440.1") %>% sample(50), # PSY1 
+  neighbors(my_network, v = "Solly.M82.01G041430.1") %>% sample(50), # Module 4 - early fruit - SAUR
+  neighbors(my_network, v = "Solly.M82.03G024180.1") %>% sample(50) # Module 9 - seed specific - "oleosin"
 ) %>% 
-  unique() %>% 
-  sample(size = 200)
+  unique()  
 
 length(neighbors_of_bait)
 ```
 
-```
-[1] 200
-```
 For the sake of this example, let's just sample 200 neighbors to make the example run faster.
 
 We can make a sub-network object. 
@@ -1428,9 +1428,7 @@ subnetwork_edges <- edge_table_select %>%
 head(subnetwork_edges)
 dim(subnetwork_edges)
 ```
-```
-[1] 3002 6
-```
+ 
 ```{r}
 my_subnetwork <- graph_from_data_frame(subnetwork_edges,
                                      vertices = subnetwork_nodes,
