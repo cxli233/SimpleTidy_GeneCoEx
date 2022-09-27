@@ -1274,17 +1274,16 @@ We can pull out their neighbors using the `neighbors()` function within `igraph(
 For the sake of this example, let's just a couple genes from other clusters as well. 
 ```{r}
 neighbors_of_bait <- c(
-  neighbors(my_network, v = "Solly.M82.10G020850.1"), # PG
-  neighbors(my_network, v = "Solly.M82.03G005440.1"), # PSY1 
-  neighbors(my_network, v = "Solly.M82.01G041430.1"), # Module 4 - early fruit - SAUR
-  neighbors(my_network, v = "Solly.M82.03G024180.1") # Module 9 - seed specific - "oleosin"
+  neighbors(my_network, v = "Solly.M82.10G020850.1") %>% sample(50), # PG
+  neighbors(my_network, v = "Solly.M82.03G005440.1") %>% sample(50), # PSY1 
+  neighbors(my_network, v = "Solly.M82.01G041430.1") %>% sample(50), # Module 4 - early fruit - SAUR
+  neighbors(my_network, v = "Solly.M82.03G024180.1") %>% sample(50) # Module 9 - seed specific - "oleosin"
 ) %>% 
-  unique() %>% 
-  sample(size = 200)
+  unique()  
 
 length(neighbors_of_bait)
 ```
-For the sake of this example, let's just sample 200 neighbors to make the example run faster.
+For the sake of this example, let's just sample ~200 neighbors to make the example run faster.
 
 We can make a sub-network object. 
 First we subset nodes in the network. 
