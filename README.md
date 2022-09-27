@@ -1003,8 +1003,8 @@ my_network_modules %>%
 
 ```
 ## gene_ID  module   functional_annotation
-## Solly.M82.03G005440.1	8	PHYTOENE SYNTHASE		
-## Solly.M82.10G020850.1	8	Pectin lyase-like superfamily protein
+## Solly.M82.03G005440.1	9	PHYTOENE SYNTHASE		
+## Solly.M82.10G020850.1	9	Pectin lyase-like superfamily protein
 ```
 It looks like they are in the same module, very good to see. 
 Remember, they are correlated with a r > 0.7; they should be in the same module. 
@@ -1046,8 +1046,8 @@ It will be too much to look at if graph all the modules, so let's just pick 2.
 
 I picked: 
 
-* module 4, which is most highly expressed in 5 DPA - an early expressing cluster.
-* module 8, where our bait genes are - a late expressing cluster. 
+* module 5, which is most highly expressed in 5 DPA - an early expressing cluster.
+* module 9, where our bait genes are - a late expressing cluster. 
 
 ```{r}
 module_line_plot <- Exp_table_long_averaged_z_high_var_modules %>% 
@@ -1063,15 +1063,15 @@ module_line_plot <- Exp_table_long_averaged_z_high_var_modules %>%
     str_detect(dev_stage, "RR") ~ 9
   )) %>% 
   mutate(dev_stage = reorder(dev_stage, order_x)) %>% 
-  filter(module == "8" |
-           module == "4") %>% 
+  filter(module == "9" |
+           module == "5") %>% 
   ggplot(aes(x = dev_stage, y = z.score)) +
   facet_grid(module ~ tissue) +
   geom_line(aes(group = gene_ID), alpha = 0.3, color = "grey70") +
   geom_line(
     data = modules_mean_z %>% 
-      filter(module == "8" |
-               module == "4") %>% 
+      filter(module == "9" |
+               module == "5") %>% 
       mutate(order_x = case_when(
         str_detect(dev_stage, "5") ~ 1,
         str_detect(dev_stage, "10") ~ 2,
@@ -1423,8 +1423,8 @@ For the sake of this example, let's just a couple genes from other clusters as w
 neighbors_of_bait <- c(
   neighbors(my_network, v = "Solly.M82.10G020850.1") %>% sample(50), # PG
   neighbors(my_network, v = "Solly.M82.03G005440.1") %>% sample(50), # PSY1 
-  neighbors(my_network, v = "Solly.M82.01G041430.1") %>% sample(50), # Module 4 - early fruit - SAUR
-  neighbors(my_network, v = "Solly.M82.03G024180.1") %>% sample(50) # Module 9 - seed specific - "oleosin"
+  neighbors(my_network, v = "Solly.M82.01G041430.1") %>% sample(50), # Module 5 - early fruit - SAUR
+  neighbors(my_network, v = "Solly.M82.03G024180.1") %>% sample(50) # Module 8 - seed specific - "oleosin"
 ) %>% 
   unique()  
 
@@ -1441,9 +1441,9 @@ subnetwork_nodes <- my_network_modules %>%
   filter(gene_ID %in% names(neighbors_of_bait)) %>% 
   inner_join(module_peak_exp, by = "module") %>% 
   mutate(module_annotation = case_when(
-    module == "4" ~ "early fruit",
-    module == "9" ~ "seed",
-    module == "8" ~ "ripening",
+    module == "5" ~ "early fruit",
+    module == "8" ~ "seed",
+    module == "9" ~ "ripening",
     T ~ "other"
   ))
 
