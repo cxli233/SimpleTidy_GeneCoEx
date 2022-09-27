@@ -717,3 +717,143 @@ ggsave("../Results/r_histogram.svg", height = 3.5, width = 5, bg = "white")
 ggsave("../Results/r_histogram.png", height = 3.5, width = 5, bg = "white")
 ```
 ![r_histogram.svg](https://github.com/cxli233/SimpleTidy_GeneCoEx/blob/main/Results/r_histogram.svg)
+
+Here I randomly sampled 20k edges and plot a histogram. 
+You can plot the whole edge table, but it will take a lot longer to make the graph. 
+When you sample large enough, it does not change the shape of the distribution. 
+Looks like at r > 0.7 (red line), the distribution trails off rapidly. 
+So let's use r > 0.7 as a cutoff. 
+
+Why do I warn against determining cutoffs using p values alone? 
+Because p value is a function of both effect size (r) and degrees of freedom (df). 
+Experiments with larger df produces smaller p values given the same effect size. 
+Let's make a graph to illustrate that:
+```{r}
+t_dist_example <- expand.grid(
+  df = c(2, 5, 10, 50, 80, 100),
+  r = c(0.2, 0.3, 0.5, 0.7, 0.8, 0.9, 0.99)
+  ) %>% 
+  mutate(t = r*sqrt((df-2)/(1-r^2))) %>% 
+  mutate(p = pt(q = t, df = df, lower.tail = F))
+  
+t_dist_example %>% 
+  ggplot(aes(x = r, y = -log10(p))) +
+  geom_line(aes(group = df, color = as.factor(df)), 
+            size = 1.1, alpha = 0.8) +
+  geom_hline(yintercept = 2, color = "grey20", size = 1, linetype = 4) +
+  labs(color = "df",
+       caption = "dotted line: P = 0.01") +
+  theme_classic() +
+  theme(
+    legend.position = c(0.2, 0.6),
+    text = element_text(size = 14),
+    axis.text = element_text(color = "black"),
+    plot.caption = element_text(hjust = 0, size = 14)
+  )
+
+ggsave("../Results/r_df_p_relationship.svg", height = 3.5, width = 3.5, bg = "white")
+ggsave("../Results/r_df_p_relationship.png", height = 3.5, width = 3.5, bg = "white")
+```
+![r_df_p_relationship.svg](https://github.com/cxli233/SimpleTidy_GeneCoEx/blob/main/Results/r_df_p_relationship.svg)
+
+As you can see, large size experiments (df = 80 or 100), you would reach p < 0.01 with r value between 0.2 and 0.4.
+However, for experiments with df at 5, you won't get to p = 0.01 unless you have r values closer to 0.9. 
+The advantage of empirical determination using bait genes is that the correlation between baits are more or less independent of df. 
+
+Not that there are many negatively correlated genes, we can look at those at well.
+But for the sake of this example, let's just look at positively correlated genes. 
+
+```{r}
+edge_table_select <- edge_table %>% 
+  filter(r >= 0.7)
+
+dim(edge_table_select)
+```
+
+```
+[1] 1230395       6
+```
+We are now down to 1,230,395 edges. Still **A LOT**. 
+
+Is this a perfect cutoff calling method? No.
+Is this method grounded in sound understanding of statistics, heuristics, and guided by the biology? Yes.
+
+Before we move forward, we can examine the correlation between two bait genes using a scatter plot. 
+```{r}
+ Bait_cor_by_stage <- z_score_wide %>% 
+  filter(gene_ID == "Solly.M82.10G020850.1" |
+           gene_ID == "Solly.M82.03G005440.1") %>% 
+  select(-gene_ID) %>% 
+  t() %>% 
+  as.data.frame() %>% 
+  mutate(`Sample Name` = row.names(.)) %>% 
+  inner_join(PCA_coord, by = "Sample Name") %>% 
+  ggplot(aes(x = Solly.M82.03G005440.1,
+             y = Solly.M82.10G020850.1)) +
+  geom_point(aes(fill = stage), color = "grey20", 
+             size = 2, alpha = 0.8, shape = 21) +
+  scale_fill_manual(values = viridis(9, option = "D")) +
+  labs(x = "PSY1 z score",
+       y = "PG z score") + 
+  theme_classic() +
+  theme(
+    legend.position = c(0.25, 0.7),
+    text = element_text(size = 14),
+    axis.text = element_text(color = "black")
+  )
+
+Bait_cor_by_tissue <- z_score_wide %>% 
+  filter(gene_ID == "Solly.M82.10G020850.1" |
+           gene_ID == "Solly.M82.03G005440.1") %>% 
+  select(-gene_ID) %>% 
+  t() %>% 
+  as.data.frame() %>% 
+  mutate(`Sample Name` = row.names(.)) %>% 
+  inner_join(PCA_coord, by = "Sample Name") %>% 
+  ggplot(aes(x = Solly.M82.03G005440.1,
+             y = Solly.M82.10G020850.1)) +
+  geom_point(aes(fill = tissue), color = "grey20", 
+             size = 2, alpha = 0.8, shape = 21) +
+  scale_fill_manual(values = brewer.pal(11, "Set3")) +
+   labs(x = "PSY1 z score",
+       y = "PG z score") + 
+  theme_classic() +
+  theme(
+    legend.position = c(0.25, 0.6),
+    text = element_text(size = 14),
+    axis.text = element_text(color = "black")
+  )
+
+wrap_plots(Bait_cor_by_stage, Bait_cor_by_tissue, nrow = 1)
+
+ggsave("../Results/Bait_correlation.svg", height = 4.5, width = 9, bg = "white")
+ggsave("../Results/Bait_correlation.png", height = 4.5, width = 9, bg = "white")
+```
+![Bait_correlation.svg](https://github.com/cxli233/SimpleTidy_GeneCoEx/blob/main/Results/Bait_correlation.svg)
+
+Here each dot is a library. You can annotate the libraries using metadata, which is now part of `PCA_coord`. 
+As development progresses, both bait genes are up-regulated, consistent with what you know about the biology. 
+
+## Module detection
+The main goal of a gene co-expression analysis to detect gene co-expression modules, groups of highly co-expressed genes. 
+We will be the Leiden algorithm to detect module, which is a graph based clustering method. 
+The Leiden method produces clusters in which members are highly interconnected. 
+In gene co-expression terms, it looks for groups of genes that are highly correlated with each other. 
+If you are interested, you can read more about it in this [(review)](https://www.nature.com/articles/s41598-019-41695-z ).
+
+### Build graph object 
+We will be using `igraph` to do some of the downstream analyses. It will do a lot of the heavy lifting for us. 
+While you can get Leiden as a standalone package, Leiden is also part of the `igraph` package. 
+The first thing to do is producing a graph object, also known as a network object. 
+
+To make a graph object, you need a edge table. 
+We already made that, which is `edge_table_select`, a edge table that we filtered based on some kind of r cutoff. 
+Optionally, we can also provide a node table, which contains information about all the notes present in this network. 
+We can make that. 
+
+We need to two things. 
+
+1. Non-redundant gene IDs from the edge table
+2. Functional annotation, which I [downloaded](http://spuddb.uga.edu/m82_uga_v1_download.shtml ).
+
+
