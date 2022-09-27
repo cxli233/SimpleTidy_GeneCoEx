@@ -1271,12 +1271,7 @@ Say we want to look at genes directly co-expressed with our one of our bait gene
 We can pull out their neighbors using the `neighbors()` function within `igraph()`.
 `igraph` comes with a set of network analysis functions that we can call. 
 
-```{r}
-my_network_modules %>% 
-  filter(module == 3)
-```
-
-
+For the sake of this example, let's just a couple genes from other clusters as well. 
 ```{r}
 neighbors_of_bait <- c(
   neighbors(my_network, v = "Solly.M82.10G020850.1"), # PG
