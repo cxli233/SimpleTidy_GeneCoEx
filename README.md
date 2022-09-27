@@ -123,7 +123,7 @@ dim(Metadata)
 ```
 
 ```
-# [1] 483  17
+## [1] 483  17
 ```
 Looks like there are 483 libraries and 17 different technical or biological descriptions for each library. 
 **At this step, you should check that the number of libraries matches between the metadata and gene expression matrix.**
@@ -166,7 +166,7 @@ Metadata %>%
 ```
 
 ```
-# A tibble:16 × 2 Groups:dev_stage [16]
+## A tibble:16 × 2 Groups:dev_stage [16]
 ```
 According to the metadata, there are 16 developmental stages. 
 According to the paper, the order of the developmental statges are:
@@ -194,7 +194,7 @@ Metadata %>%
 ```
 
 ```
-# A tibble:11 × 2 Groups:tissue [11]
+## A tibble:11 × 2 Groups:tissue [11]
 ```
 Looks like there are 11 tissues. The paper also indicates there are 11 tissues. We are good here. 
 
@@ -206,7 +206,7 @@ Metadata %>%
 ```
 
 ```
-# A tibble:133 × 3 Groups:tissue, dev_stage [133]
+## A tibble:133 × 3 Groups:tissue, dev_stage [133]
 ```
 Looks like there are 133 tissue * "developmental stage" combination. 
 Some have 3 reps; some have 4. That's ok. 
@@ -271,20 +271,20 @@ head(pc_importance, 20)
 ```
 
 ```
-# $1 Standard deviation
-# $2 Proportion of Variance
-# $3 Cumulative Proportion
+## $1 Standard deviation
+## $2 Proportion of Variance
+## $3 Cumulative Proportion
 
-# PC1	55.856580	0.43662	0.43662	
-# PC2	27.601642	0.10662	0.54323	
-# PC3	18.916665	0.05008	0.59331	
-# PC4	15.105094	0.03193	0.62524	
-# PC5	13.465655	0.02538	0.65062	
-# PC6	11.751300	0.01933	0.66994	
-# PC7	9.454201	0.01251	0.68245	
-# PC8	8.560489	0.01026	0.69271	
-# PC9	8.193150	0.00939	0.70210	
-# PC10	8.105687	0.00919	0.71129
+## PC1	55.856580	0.43662	0.43662	
+## PC2	27.601642	0.10662	0.54323	
+## PC3	18.916665	0.05008	0.59331	
+## PC4	15.105094	0.03193	0.62524	
+## PC5	13.465655	0.02538	0.65062	
+## PC6	11.751300	0.01933	0.66994	
+## PC7	9.454201	0.01251	0.68245	
+## PC8	8.560489	0.01026	0.69271	
+## PC9	8.193150	0.00939	0.70210	
+## PC10	8.105687	0.00919	0.71129
 ```
 `prcomp()` performs PCA for you, given a numeric matrix, which is just the transposed `Exp_table_log_wide`, but without the gene ID column. 
 `as.data.frame(t(summary(my_pca)$importance))` saves the sd and proportion of variance into a data table. 
@@ -497,7 +497,7 @@ dim(high_var_genes)
 ```
 
 ```
-# [1] 22271     2
+## [1] 22271     2
 ```
 
 This chunk of code computes the variance for each gene. 
@@ -526,8 +526,8 @@ high_var_genes5000 %>%
 ```
 
 ```
-# A tibble:1 × 2
-# A tibble:6 × 2
+## A tibble:1 × 2
+## A tibble:6 × 2
 ```
 
 Both are present in the top 5000, so that's good. 
@@ -547,7 +547,7 @@ Exp_table_long_averaged_z_high_var %>%
 ```
 
 ```
-# [1] 5000
+## [1] 5000
 ```
 
 The `%in%` operator filters gene_IDs that are present in `high_var_genes5000$gene_ID`, thus retaining only high var genes. 
@@ -579,7 +579,7 @@ dim(cor_matrix)
 ```
 
 ```
-# [1] 5000 5000
+## [1] 5000 5000
 ```
 This step can take a while, because it is computing many correlation coefficients. 
 We threw in 5000 high var genes, so it is computing 5000^2 correlations. 
@@ -606,7 +606,7 @@ number_of_tissue_stage
 ```
 
 ```
-# [1] 84
+## [1] 84
 ```
 
 In this case, it is 84. There are two way to find it. 
@@ -622,7 +622,7 @@ PCA_coord %>%
 ```
 
 ```
-# [1] 84
+## [1] 84
 ```
 
 Both methods say we have 84 unique tissue by stage combinations that were hand collected. 
@@ -686,12 +686,12 @@ edge_table %>%
 ```
 
 ```
-# A tibble:10 × 6 
-# from                  to                    r         t         p.value     FDR
-# Solly.M82.02G011270.2	Solly.M82.03G001400.2	0.1958725	1.808737	0.03707863	0.04999967
-# A tibble:10 × 6
-# from                  to                    r         t         p.value     FDR
-# Solly.M82.05G004690.1	Solly.M82.12G000310.1	0.2704730	2.544061	0.006416876	0.009999969
+## A tibble:10 × 6 
+## from                  to                    r         t         p.value     FDR
+## Solly.M82.02G011270.2	Solly.M82.03G001400.2	0.1958725	1.808737	0.03707863	0.04999967
+## A tibble:10 × 6
+## from                  to                    r         t         p.value     FDR
+## Solly.M82.05G004690.1	Solly.M82.12G000310.1	0.2704730	2.544061	0.006416876	0.009999969
 ```
 
 If you cut off the FDR at 0.05, then your r values are 0.196 or larger. 
@@ -713,9 +713,9 @@ edge_table %>%
 ```
 
 ```
-# A tibble:10 × 6 
-# from                  to                    r         t         p.value       FDR
-# Solly.M82.03G005440.1	Solly.M82.03G005440.2	0.9173865	20.87271	7.402139e-35	1.127654e-32
+## A tibble:10 × 6 
+## from                  to                    r         t         p.value       FDR
+## Solly.M82.03G005440.1	Solly.M82.03G005440.2	0.9173865	20.87271	7.402139e-35	1.127654e-32
 ```
 Different isoforms of the same gene is highly correlated, so that's good to see. 
 
@@ -728,9 +728,9 @@ edge_table %>%
 ```
 
 ```
-# A tibble:6 × 6 
-# from                  to                    r         t         p.value       FDR
-# Solly.M82.03G005440.1	Solly.M82.10G020850.1	0.7872474	11.560813	3.356543e-19  4.772911e-18
+## A tibble:6 × 6 
+## from                  to                    r         t         p.value       FDR
+## Solly.M82.03G005440.1	Solly.M82.10G020850.1	0.7872474	11.560813	3.356543e-19  4.772911e-18
 ```
 These two bait genes (PG and PSY1) are chosen based on that they are involved in the same process.
 They have a r value of from 0.73 to 0.78, which is rather high, considering at FDR < 0.01, r cutoff was 0.27. 
@@ -809,7 +809,7 @@ dim(edge_table_select)
 ```
 
 ```
-[1] 1230395       6
+## [1] 1230395       6
 ```
 We are now down to 1,230,395 edges. Still **A LOT**. 
 
@@ -911,7 +911,7 @@ dim(node_table)
 ```
 
 ```
-[1] 4880
+## [1] 4880
 ```
 
 We have 4880 genes in this network, along with 1,230,395 edges.
@@ -969,8 +969,8 @@ my_network_modules %>%
 ```
 
 ```
-# A tibble:18 × 2 Groups:module [18]
-# sum 4551	
+## A tibble:18 × 2 Groups:module [18]
+## sum 4551	
 ```
 
 Looks like there are ~18 modules that have 5 or more genes, comprising ~4550 genes. 
@@ -1002,9 +1002,9 @@ my_network_modules %>%
 ```
 
 ```
-# gene_ID # module  # functional_annotation
-# Solly.M82.03G005440.1	8	PHYTOENE SYNTHASE		
-# Solly.M82.10G020850.1	8	Pectin lyase-like superfamily protein
+## gene_ID  module   functional_annotation
+## Solly.M82.03G005440.1	8	PHYTOENE SYNTHASE		
+## Solly.M82.10G020850.1	8	Pectin lyase-like superfamily protein
 ```
 It looks like they are in the same module, very good to see. 
 Remember, they are correlated with a r > 0.7; they should be in the same module. 
@@ -1183,8 +1183,8 @@ quantile(modules_mean_z$mean.z, 0.95)
 ```
 
 ```
-#      95% 
-# 1.482264
+##      95% 
+## 1.482264
 ```
 The 95th percentile of averaged z score is 1.48. We can probably roughly clipped the z-scores at 1.5 or -1.5
 
@@ -1521,7 +1521,7 @@ length(neighbors_of_PG_PSY1)
 ```
 
 ```
-[1] 630
+## [1] 630
 ```
 
 Looks like there are 630 direct neighbors of PG and PSY1. 
