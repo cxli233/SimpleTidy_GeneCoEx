@@ -1571,8 +1571,8 @@ TF_TPM <- Exp_table_long %>%
     axis.text = element_text(color = "black"),
     axis.text.x = element_blank(),
     strip.background = element_blank()
-  )https://github.com/cxli233/SimpleTidy_GeneCoEx/blob/main/Results/Candidate_genes_TPM.svg
-
+  )
+  
 wrap_plots(TF_TPM, module_lines_color_strip, 
            nrow = 2, heights = c(1, 0.05))
 
