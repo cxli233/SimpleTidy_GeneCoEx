@@ -190,3 +190,201 @@ The type column indicates if the factor in question is a qualitative (discrete) 
 A special note is that developmental stages can be either analyzed as numeric variable or a qualitative variable.
 "EU" and "OU" in the Reps row stands for experimental unit and observational unit. In this case, the rep is both EU and OU. 
 This is not always the case, especially if the same library is sequenced twice and uploaded with two different SRA number. 
+
+# Global view of the experiment 
+Now we understand the experimental design, we will figure out what is the major driver of variance in the experiment next.
+In other words, between developmental stage and tissue, which factor contributes more to the variance in this experiment? 
+The answer to this question matters in terms of how we mostly effectively visualize our data. 
+
+A good way to have a global view of the experiment is doing a principal component analysis (PCA).
+*This is a tidyverse workflow, so I will be doing things in the tidyverse way.* Brace yourself for `%>%`.
+
+The first thing for tidyverse workflow is going to from wide format to tidy (or long format).
+In tidy format, each row is an observation, and each column is a variable.
+We can go from wide to long using the `pivot_longer()` function. 
+
+```{r}
+Exp_table_long <- Exp_table %>% 
+  rename(gene_ID = `...1`) %>% 
+  pivot_longer(cols = !gene_ID, names_to = "library", values_to = "tpm") %>% 
+  mutate(logTPM = log10(tpm + 1)) 
+
+head(Exp_table_long)
+```
+In this code chunk, I also renamed the first column to "gene_ID" and log transformed the tpm values. 
+All in one pipe. We will come back to this long table later. This long table is the basis of all downstream analyses. 
+
+## PCA 
+However, the input data for PCA is a numeric matrix, so we have to go from long to wide back again. 
+To do that, we use `pivot_wider()`.
+
+```{r}
+Exp_table_log_wide <- Exp_table_long %>% 
+  select(gene_ID, library, logTPM) %>% 
+  pivot_wider(names_from = library, values_from = logTPM)
+
+head(Exp_table_log_wide)
+```
+
+```{r}
+my_pca <- prcomp(t(Exp_table_log_wide[, -1]))
+pc_importance <- as.data.frame(t(summary(my_pca)$importance))
+head(pc_importance, 20)
+```
+
+```
+# $1 Standard deviation
+# $2 Proportion of Variance
+# $3 Cumulative Proportion
+
+# PC1	55.856580	0.43662	0.43662	
+# PC2	27.601642	0.10662	0.54323	
+# PC3	18.916665	0.05008	0.59331	
+# PC4	15.105094	0.03193	0.62524	
+# PC5	13.465655	0.02538	0.65062	
+# PC6	11.751300	0.01933	0.66994	
+# PC7	9.454201	0.01251	0.68245	
+# PC8	8.560489	0.01026	0.69271	
+# PC9	8.193150	0.00939	0.70210	
+# PC10	8.105687	0.00919	0.71129
+```
+`prcomp()` performs PCA for you, given a numeric matrix, which is just the transposed `Exp_table_log_wide`, but without the gene ID column. 
+`as.data.frame(t(summary(my_pca)$importance))` saves the sd and proportion of variance into a data table. 
+In this case, the 1st PC accounts for 43% of the variance in this experiment.
+The 2nd PC accounts for 10% of the variance.  
+
+## Graph PCA plot 
+To make a PCA plot, we will graph the data stored in `my_pca$x`, which stores the coordinates of each library in PC space. 
+Let's pull that data out and annotate them (with metadata). 
+
+```{r}
+PCA_coord <- my_pca$x[, 1:10] %>% 
+  as.data.frame() %>% 
+  mutate(Run = row.names(.)) %>% 
+  full_join(Metadata %>% 
+              select(Run, tissue, dev_stage, `Library Name`, `Sample Name`), by = "Run")
+
+head(PCA_coord)
+```
+For the purpose of visualization, I only pulled the first 10 PC. In fact, I will be only plotting the first 2 or 3 PCs. 
+For the purpose of analysis, I only pulled the biologically relevant columns from the metadata: Run, tissue, dev_stage, Library Name, and Sample Name. 
+
+We noticed that there were in fact only 10 developmental stages, so let's fix that here. 
+
+```{r}
+PCA_coord <- PCA_coord %>% 
+  mutate(stage = case_when(
+    str_detect(dev_stage, "MG|Br|Pk") ~ str_sub(dev_stage, start = 1, end = 2),
+    T ~ dev_stage
+  )) %>% 
+  mutate(stage = factor(stage, levels = c(
+   "Anthesis",
+   "5 DPA",
+   "10 DPA",
+   "20 DPA",
+   "30 DPA",
+   "MG",
+   "Br",
+   "Pk",
+   "LR",
+   "RR"
+  ))) %>% 
+  mutate(dissection_method = case_when(
+    str_detect(tissue, "epidermis") ~ "LM",
+    str_detect(tissue, "Collenchyma") ~ "LM",
+    str_detect(tissue, "Parenchyma") ~ "LM",
+    str_detect(tissue, "Vascular") ~ "LM",
+    str_detect(dev_stage, "Anthesis") ~ "LM",
+    str_detect(dev_stage, "5 DPA") &
+      str_detect(tissue, "Locular tissue|Placenta|Seeds") ~ "LM",
+    T ~ "Hand"
+  ))
+
+head(PCA_coord)
+```
+I made a new `stage` column, and parse the old `dev_stage` column. If `dev_stage` were MG, Br, or Pk, only keep the first two characters. 
+I also manually reordered the stages. It's good to have biological meaningful orders. 
+I could have also ordered the tissue column in some way, e.g., from outer layer of the fruit to inner layer. We can do that if it turns out to be necessary. 
+
+According to the paper, 5 pericarp tissues were collected using laser capture microdissection (LM), so I parsed those out: 
+
+* Outer and inner epidermis
+* Collenchyma
+* Parenchyma
+* Vascular tissue 
+
+In addition, some early stage samples were also collected uisng LM:
+
+> Due to their small size, laser  microdissection (LM) was used to harvest these six tissues at anthesis, as well as locular tissue, placenta, and seeds at 5 DPA.
+
+```{r}
+PCA_by_method <- PCA_coord %>% 
+  ggplot(aes(x = PC1, y = PC2)) +
+  geom_point(aes(fill = dissection_method), color = "grey20", shape = 21, size = 3, alpha = 0.8) +
+  scale_fill_manual(values = brewer.pal(n = 3, "Accent")) +
+  labs(x = paste("PC1 (", pc_importance[1, 2] %>% signif(3)*100, "% of Variance)", sep = ""), 
+       y = paste("PC2 (", pc_importance[2, 2] %>% signif(3)*100, "% of Variance)", "  ", sep = ""),
+       fill = NULL) +  
+  theme_bw() +
+  theme(
+    text = element_text(size= 14),
+    axis.text = element_text(color = "black")
+  )
+
+PCA_by_method
+
+ggsave("../Results/PCA_by_dissection_method.svg", height = 3, width = 4, bg = "white")
+ggsave("../Results/PCA_by_dissection_method.png", height = 3, width = 4, bg = "white")
+```
+![PCA_by_dissection_method.svg](https://github.com/cxli233/SimpleTidy_GeneCoEx/blob/main/Results/PCA_by_dissection_method.svg)
+
+First thing to watch out for is technical differences. It seems the dissection method IS the major source of variance, corresponding perfectly to PC1. 
+
+For biological interpretation, it's then better to look at PC2 and PC3.
+```{r}
+PCA_by_tissue <- PCA_coord %>% 
+  ggplot(aes(x = PC2, y = PC3)) +
+  geom_point(aes(fill = tissue), color = "grey20", shape = 21, size = 3, alpha = 0.8) +
+  scale_fill_manual(values = brewer.pal(11, "Set3")) +
+  labs(x = paste("PC2 (", pc_importance[2, 2] %>% signif(3)*100, "% of Variance)", sep = ""), 
+       y = paste("PC3 (", pc_importance[3, 2] %>% signif(3)*100, "% of Variance)", "  ", sep = ""),
+       fill = "tissue") +  
+  theme_bw() +
+  theme(
+    text = element_text(size= 14),
+    axis.text = element_text(color = "black")
+  )
+
+PCA_by_stage <- PCA_coord %>% 
+  ggplot(aes(x = PC2, y = PC3)) +
+  geom_point(aes(fill = stage), color = "grey20", shape = 21, size = 3, alpha = 0.8) +
+  scale_fill_manual(values = viridis(10, option = "D")) +
+  labs(x = paste("PC2 (", pc_importance[2, 2] %>% signif(3)*100, "% of Variance)", sep = ""), 
+       y = paste("PC3 (", pc_importance[3, 2] %>% signif(3)*100, "% of Variance)", "  ", sep = ""),
+       fill = "stage") +  
+  theme_bw() +
+  theme(
+    text = element_text(size= 14),
+    axis.text = element_text(color = "black")
+  )
+
+wrap_plots(PCA_by_stage, PCA_by_tissue, nrow = 1)
+ggsave("../Results/PCA_by_stage_tissue.svg", height = 3.5, width = 8.5, bg = "white")
+ggsave("../Results/PCA_by_stage_tissue.png", height = 3.5, width = 8.5, bg = "white")
+```
+![PCA_by_stage_tissue.svg](https://github.com/cxli233/SimpleTidy_GeneCoEx/blob/main/Results/PCA_by_stage_tissue.svg)
+
+Now the x-axis (PC2) clearly separates developmental stages young to old from left to right. 
+The y-axis (PC3) clearly separates seeds from everything else. 
+
+Thus, in terms of variance contribution, dissection method > stage > tissue. 
+We will use this information to guide downstream visualization. 
+
+Now we have to make a decision. 
+The fact that the major driver of variation is a technical factor may be a concern. 
+Perhaps LM samples are lower input and thus lower library complexity? I don't know.
+But to best separate biological variation from technical variation, we should do separate gene co-expression analyses for hand collected and LM samples. 
+
+For the sake of this exercise, let's focus on hand collected samples. 
+
+
