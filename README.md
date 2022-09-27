@@ -1362,6 +1362,7 @@ ggsave("../Results/module_heatmap.svg", height = 4.8, width = 10, bg = "white")
 ggsave("../Results/module_heatmap.png", height = 4.8, width = 10, bg = "white")
 ```
 ![module_heatmap.svg](https://github.com/cxli233/SimpleTidy_GeneCoEx/blob/main/Results/module_heatmap.svg)
+
 When the rows and columns are re-orded, you can trace the signal down the diagonal from upper left to lower right. 
 I also added two color strips at the bottom to annotate the tissues and stages. 
 The fruit ripening genes, which are captured by module 8, don't really kick in until Br stage or later. 
@@ -1379,4 +1380,180 @@ Say we want to look at genes directly co-expressed with our one of our bait gene
 We can pull out their neighbors using the `neighbors()` function within `igraph()`.
 `igraph` comes with a set of network analysis functions that we can call. 
 
+For the sake of this example, let's just a couple genes from other clusters as well. 
+```{r}
+neighbors_of_bait <- c(
+  neighbors(my_network, v = "Solly.M82.10G020850.1"), # PG
+  neighbors(my_network, v = "Solly.M82.03G005440.1"), # PSY1 
+  neighbors(my_network, v = "Solly.M82.01G041430.1"), # Module 4 - early fruit - SAUR
+  neighbors(my_network, v = "Solly.M82.03G024180.1") # Module 9 - seed specific - "oleosin"
+) %>% 
+  unique() %>% 
+  sample(size = 200)
+
+length(neighbors_of_bait)
+```
+
+```
+[1] 200
+```
+For the sake of this example, let's just sample 200 neighbors to make the example run faster.
+
+We can make a sub-network object. 
+First we subset nodes in the network.  
+
+```{r}
+subnetwork_nodes <- my_network_modules %>% 
+  filter(gene_ID %in% names(neighbors_of_bait)) %>% 
+  inner_join(module_peak_exp, by = "module") %>% 
+  mutate(module_annotation = case_when(
+    module == "4" ~ "early fruit",
+    module == "9" ~ "seed",
+    module == "8" ~ "ripening",
+    T ~ "other"
+  ))
+
+head(subnetwork_nodes)
+```
+
+I also append the data from module peak expression and add a new column called "module annotation".
+Then we subset edges.
+We constrain the edge table such that both starting and ending points of the edges must be present in the sub-network node table.
+
+```{r}
+subnetwork_edges <- edge_table_select %>% 
+  filter(from %in% subnetwork_nodes$gene_ID &
+           to %in% subnetwork_nodes$gene_ID) 
+
+head(subnetwork_edges)
+dim(subnetwork_edges)
+```
+```
+[1] 3002 6
+```
+```{r}
+my_subnetwork <- graph_from_data_frame(subnetwork_edges,
+                                     vertices = subnetwork_nodes,
+                                     directed = F)
+```
+Use `graph_from_data_frame()` from `igraph` to build the sub-network.
+There are ways to directly filter existing networks, but I always find it more straightforward to build sub-network de novo from filtered edge and node tables.
+
+```{r}
+my_subnetwork %>% 
+  ggraph(layout = "kk", circular = F) +
+  geom_edge_diagonal(color = "grey70", width = 0.5, alpha = 0.5) +
+  geom_node_point(alpha = 0.8, color = "white", shape = 21, size = 2,
+                  aes(fill = module_annotation)) + 
+  scale_fill_manual(values = c(brewer.pal(8, "Accent")[c(1,3,6)], "grey30"),
+                    limits = c("early fruit", "seed", "ripening", "other")) +
+  labs(fill = "Modules") +
+  guides(size = "none",
+         fill = guide_legend(override.aes = list(size = 4), 
+                             title.position = "top", nrow = 2)) +
+  theme_void()+
+  theme(
+    text = element_text(size = 14), 
+    legend.position = "bottom",
+    legend.justification = 1,
+    title = element_text(size = 12)
+  )
+
+ggsave("../Results/subnetwork_graph.svg", height = 4, width = 3, bg = "white")
+ggsave("../Results/subnetwork_graph.png", height = 4, width = 3, bg = "white")
+```
+
+![subnetwork_graph.svg](https://github.com/cxli233/SimpleTidy_GeneCoEx/blob/main/Results/subnetwork_graph.svg)
+
+This could take a while. It is trying to draw many many lines and many dots. 
+Unsurprisingly, we get a bunch of distinct hairballs. 
+
+
+# Mean separation plots for candidate genes 
+## Pull out direct neighbors 
+We did a bunch of analyes, now what? 
+A common "ultimate" goal for gene co-expression analyses is to find new candidate genes, which are genes co-expressed with bait genes. 
+After doing network analysis, this is very easy to find. 
+We can either look at what other genes are in module 8, which both our bait genes are in, or we can look at direct neighbors of bait genes. 
+`igraph` comes with a set of network analysis functions that we can call. 
+
+And we already did that earlier for the sub-network. 
+```{r}
+neighbors_of_PG_PSY1 <- c(
+  neighbors(my_network, v = "Solly.M82.10G020850.1"), # PG
+  neighbors(my_network, v = "Solly.M82.03G005440.1") # PSY1 
+) %>% 
+  unique()  
+
+length(neighbors_of_PG_PSY1)
+```
+
+```
+[1] 630
+```
+
+Looks like there are 630 direct neighbors of PG and PSY1. 
+We can take a quick look at their functional annotation. 
+
+Let's say you are interested in transcription factors (TFs). 
+There are many types of TFs. Let's say you are particularly interested in bHLH and GRAS type TFs. 
+```{r}
+my_TFs <- my_network_modules %>% 
+  filter(gene_ID %in% names(neighbors_of_PG_PSY1)) %>% 
+  filter(str_detect(functional_annotation, "GRAS|bHLH"))
+
+```
+
+```{r}
+TF_TPM <- Exp_table_long %>% 
+  filter(gene_ID %in% my_TFs$gene_ID) %>% 
+  inner_join(PCA_coord, by = c("library"="Run")) %>% 
+  filter(dissection_method == "Hand") %>% 
+  mutate(order_x = case_when(
+    str_detect(dev_stage, "5") ~ 1,
+    str_detect(dev_stage, "10") ~ 2,
+    str_detect(dev_stage, "20") ~ 3,
+    str_detect(dev_stage, "30") ~ 4,
+    str_detect(dev_stage, "MG") ~ 5,
+    str_detect(dev_stage, "Br") ~ 6,
+    str_detect(dev_stage, "Pk") ~ 7,
+    str_detect(dev_stage, "LR") ~ 8,
+    str_detect(dev_stage, "RR") ~ 9
+  )) %>% 
+  mutate(dev_stage = reorder(dev_stage, order_x)) %>% 
+  mutate(tag = str_remove(gene_ID, "Solly.M82.")) %>% 
+  ggplot(aes(x = dev_stage, y = logTPM)) +
+  facet_grid(tag ~ tissue, scales = "free_y") +
+  geom_point(aes(fill = tissue), color = "white", size = 2, 
+             alpha = 0.8, shape = 21, position = position_jitter(0.1, seed = 666)) +
+  stat_summary(geom = "line", aes(group = gene_ID), 
+               fun = mean, alpha = 0.8, size = 1.1, color = "grey20") +
+  scale_fill_manual(values = brewer.pal(8, "Set2")) +
+  labs(x = NULL,
+       y = "log10(TPM)") +
+  theme_bw() +
+  theme(
+    legend.position = "none",
+    panel.spacing = unit(1, "lines"),
+    text = element_text(size = 14),
+    axis.text = element_text(color = "black"),
+    axis.text.x = element_blank(),
+    strip.background = element_blank()
+  )https://github.com/cxli233/SimpleTidy_GeneCoEx/blob/main/Results/Candidate_genes_TPM.svg
+
+wrap_plots(TF_TPM, module_lines_color_strip, 
+           nrow = 2, heights = c(1, 0.05))
+
+ggsave("../Results/Candidate_genes_TPM.svg", height = 4.8, width = 8, bg = "white")
+ggsave("../Results/Candidate_genes_TPM.png", height = 4.8, width = 8, bg = "white")
+```
+
+![Candidate_genes_TPM.svg](https://github.com/cxli233/SimpleTidy_GeneCoEx/blob/main/Results/Candidate_genes_TPM.svg)
+
+As expected, they all go up as the fruit ripens. 
+
+# Conclusions
+Well, we are pretty much done!  
+Now you just need to send the list of candidate genes and the nice graphics to your wet lab folks. 
+Hopefully they find something interesting at the lab bench. 
 
