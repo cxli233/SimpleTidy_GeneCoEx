@@ -839,7 +839,7 @@ The main goal of a gene co-expression analysis to detect gene co-expression modu
 We will be the Leiden algorithm to detect module, which is a graph based clustering method. 
 The Leiden method produces clusters in which members are highly interconnected. 
 In gene co-expression terms, it looks for groups of genes that are highly correlated with each other. 
-If you are interested, you can read more about it in this [(review)](https://www.nature.com/articles/s41598-019-41695-z ).
+If you are interested, you can read more about it in this [review](https://www.nature.com/articles/s41598-019-41695-z ).
 
 ### Build graph object 
 We will be using `igraph` to do some of the downstream analyses. It will do a lot of the heavy lifting for us. 
@@ -856,4 +856,117 @@ We need to two things.
 1. Non-redundant gene IDs from the edge table
 2. Functional annotation, which I [downloaded](http://spuddb.uga.edu/m82_uga_v1_download.shtml ).
 
+```{r}
+M82_funct_anno <- read_delim("../Data/M82.functional_annotation.txt", delim = "\t", col_names = F, col_types = cols())
+head(M82_funct_anno)
+```
 
+```{r}
+node_table <- data.frame(
+  gene_ID = c(edge_table_select$from, edge_table_select$to) %>% unique()
+) %>% 
+  left_join(M82_funct_anno, by = c("gene_ID"="X1")) %>% 
+  rename(functional_annotation = X2)
+
+head(node_table)
+dim(node_table)
+```
+
+```
+[1] 4880
+```
+
+We have 4880 genes in this network, along with 1,230,395 edges.
+Note that 4880 is less than the 5000 top var genes we put in, because we filtered out some edges. 
+
+Now let's make the network object. 
+```{r}
+my_network <- graph_from_data_frame(
+  edge_table_select,
+  vertices = node_table,
+  directed = F
+)
+```
+
+`graph_from_data_frame()` is a function from the `igraph` package. 
+It takes your edge table and node table and produce a graph (aka network) from it. 
+Note that I selected the `directed = F` argument, because we made our network using correlation.
+Correlation is non-directional, because cor(A,B) = cor(B,A). 
+
+### Graph based clustering
+The next step is detect modules from the graph object. 
+```{r}
+modules <- cluster_leiden(my_network, resolution_parameter = 2, 
+                          objective_function = "modularity")
+
+```
+
+`cluster_leiden()` runs the Leiden algorithm for you. 
+`resolution_parameter` controls how many clusters you will get. The larger it is, the more clusters. 
+You can play around with the resolution and see what you get. 
+The underlying math of `objective_function` is beyond me, but it specifies how the modules are computed. 
+
+Now we can link the module membership to the gene IDs.
+
+```{r}
+my_network_modules <- data.frame(
+  gene_ID = names(membership(modules)),
+  module = as.vector(membership(modules)) 
+) %>% 
+  inner_join(node_table, by = "gene_ID")
+
+my_network_modules %>% 
+  group_by(module) %>% 
+  count() %>% 
+  arrange(-n) %>% 
+  filter(n >= 5)
+
+my_network_modules %>% 
+  group_by(module) %>% 
+  count() %>% 
+  arrange(-n) %>% 
+  filter(n >= 5) %>% 
+  ungroup() %>% 
+  summarise(sum = sum(n))
+```
+
+```
+# A tibble:18 × 2 Groups:module [18]
+# sum 4551	
+```
+
+Looks like there are ~18 modules that have 5 or more genes, comprising ~4550 genes. 
+Not all genes are contained in modules. They are just lowly connected genes. 
+4550/4880 = 93% of the genes in the network are assigned to clusters with 5 or more genes. 
+Note that Leiden clustering has a stochastic aspect. The membership maybe slightly different every time you run it. 
+Moving forward we will only use modules that have 5 or more genes. 
+
+```{r}
+module_5 <- my_network_modules %>% 
+  group_by(module) %>% 
+  count() %>% 
+  arrange(-n) %>% 
+  filter(n >= 5)
+
+my_network_modules <- my_network_modules %>% 
+  filter(module %in% module_5$module)
+
+head(my_network_modules)
+```
+### Module quality control
+We have a bunch of different modules now, how do we know if they make any sense? 
+One way to QC these modules is looking at our bait genes. 
+
+```{r}
+my_network_modules %>% 
+  filter(gene_ID == "Solly.M82.10G020850.1" |
+           gene_ID == "Solly.M82.03G005440.1")
+```
+
+```
+# gene_ID # module  # functional_annotation
+# Solly.M82.03G005440.1	8	PHYTOENE SYNTHASE		
+# Solly.M82.10G020850.1	8	Pectin lyase-like superfamily protein
+```
+It looks like they are in the same module, very good to see. 
+Remember, they are correlated with a r > 0.7; they should be in the same module. 
