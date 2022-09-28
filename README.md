@@ -1403,7 +1403,7 @@ ggsave("../Results/module_heatmap.png", height = 4.8, width = 10, bg = "white")
 
 When the rows and columns are re-orded, you can trace the signal down the diagonal from upper left to lower right. 
 I also added two color strips at the bottom to annotate the tissues and stages. 
-The fruit ripening genes, which are captured by module 8, don't really kick in until Br stage or later. 
+The fruit ripening genes, which are captured by module 9, don't really kick in until Br stage or later. 
 
 ## Gene co-expression graphs 
 A common data visualization for gene co-expression analyses is network graphs. 
