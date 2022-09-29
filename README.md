@@ -31,6 +31,7 @@ A simple gene co-expression analyses workflow powered by tidyverse and graph ana
     - [Module detection](https://github.com/cxli233/SimpleTidy_GeneCoEx#module-detection)
          - [Build graph object](https://github.com/cxli233/SimpleTidy_GeneCoEx#build-graph-object)
          - [Graph based clustering](https://github.com/cxli233/SimpleTidy_GeneCoEx#graph-based-clustering)
+         - [What is the optimal resolution for module detection?](https://github.com/cxli233/SimpleTidy_GeneCoEx#what-is-the-optimal-resolution-for-module-detection?)
          - [Module QC](https://github.com/cxli233/SimpleTidy_GeneCoEx#module-quality-control)
      - [Module-treatment correspondance](https://github.com/cxli233/SimpleTidy_GeneCoEx#module-treatment-correspondance)
          - [More module QC](https://github.com/cxli233/SimpleTidy_GeneCoEx#more-module-qc)
@@ -1017,7 +1018,122 @@ modules <- cluster_leiden(my_network, resolution_parameter = 2,
 You can play around with the resolution and see what you get. 
 The underlying math of `objective_function` is beyond me, but it specifies how the modules are computed. 
 
-Now we can link the module membership to the gene IDs.
+### What is the optimal resolution for module detection? 
+The optimal resolution for module detection differs between networks. 
+A key factor that contributes to the difference in optimal resolution is to what extent are nodes inter-connected. 
+
+Since this is a simple workflow, we can determine the optimal resolution using heuristics. 
+We can test a range of resolutions and monitor two key performance indexes:
+
+1. Optimize number of modules that have >= 5 genes.
+2. Optimize number of genes that are contained in modules that have >= 5 genes. 
+
+Because: 
+
+* Too low resolution leads to forcing genes with different expression patterns into the same module.
+* Too high resolution leads to many genes not contained in any one module. 
+
+```{r}
+optimize_resolution <- function(network, resolution){
+  modules = network %>% 
+    cluster_leiden(resolution_parameter = resolution,
+                   objective_function = "modularity")
+  
+  parsed_modules = data.frame(
+    gene_ID = names(membership(modules)),
+    module = as.vector(membership(modules)) 
+    )
+  
+  num_module_5 = parsed_modules %>% 
+    group_by(module) %>% 
+    count() %>% 
+    arrange(-n) %>% 
+    filter(n >= 5) %>% 
+    nrow() %>% 
+    as.numeric()
+  
+  num_genes_contained = parsed_modules %>% 
+    group_by(module) %>% 
+    count() %>% 
+    arrange(-n) %>% 
+    filter(n >= 5) %>% 
+    ungroup() %>% 
+    summarise(sum = sum(n)) %>% 
+    as.numeric()
+  
+  c(num_module_5, num_genes_contained)
+
+}
+```
+Here I wrote a function to detect module, pull out number of modules that have >= 5 genes, and count number of genes contained in modules that have >= 5 genes. All in one function. 
+
+Then I can test a list of resolutions in this function. 
+Let's test a range of resolution from 0.25 to 5, in steps of 0.25.  
+
+```{r}
+ optimization_results <- purrr::map_dfc(
+  .x = seq(from = 0.25, to = 5, by = 0.25),
+  .f = optimize_resolution, 
+  network = my_network
+) %>% 
+  t() %>% 
+  cbind(
+   resolution = seq(from = 0.25, to = 5, by = 0.25)
+  ) %>% 
+  as.data.frame() %>% 
+  rename(num_module = V1,
+         num_contained_gene = V2)
+
+head(optimization_results)
+```
+This could take a while. 
+We have the results organized into one tidy data table. We can graph it.
+
+```{r}
+Optimize_num_module <- optimization_results %>% 
+  ggplot(aes(x = resolution, y = num_module)) +
+  geom_line(size = 1.1, alpha = 0.8, color = "dodgerblue2") +
+  geom_point(size = 3, alpha = 0.7) +
+  geom_vline(xintercept = 2, size = 1, linetype = 4) +
+  labs(x = "resolution parameter",
+       y = "num. modules\nw/ >=5 genes") +
+  theme_classic() +
+  theme(
+    text = element_text(size = 14),
+    axis.text = element_text(color = "black")
+  )
+
+Optimize_num_gene <- optimization_results %>% 
+  ggplot(aes(x = resolution, y = num_contained_gene)) +
+  geom_line(size = 1.1, alpha = 0.8, color = "violetred2") +
+  geom_point(size = 3, alpha = 0.7) +
+  geom_vline(xintercept = 2, size = 1, linetype = 4) +
+  labs(x = "resolution parameter",
+       y = "num. genes in\nmodules w/ >=5 genes") +
+  theme_classic() +
+  theme(
+    text = element_text(size = 14),
+    axis.text = element_text(color = "black")
+  )
+
+wrap_plots(Optimize_num_module, Optimize_num_gene, nrow = 2)
+
+ggsave("../Results/Optimize_resolution.svg", height = 5, width = 3.2, bg ="white")
+ggsave("../Results/Optimize_resolution.png", height = 5, width = 3.2, bg ="white")
+```
+
+![Optimize_resolution.svg](https://github.com/cxli233/SimpleTidy_GeneCoEx/blob/main/Results/Optimize_resolution.svg) 
+
+You can see that there is a big jump for num. modules w/ >= 5 genes going from 1.75 to 2 resolution.
+The number of modules stabilizes at resolution >=2.5.
+However, if you look at number of contained genes, the story is a little different. 
+The number of contained genes is very stable until resolution > 1.5, after which the number of genes continues to diminish. 
+
+How do you decide? I would personally go for a compromise, in this case going with res. = 2. 
+But you do you. 
+
+Let's say we move on with module detection using a resolution of 2. 
+Next, we need to link the module membership to the gene IDs.
 
 ```{r}
 my_network_modules <- data.frame(
