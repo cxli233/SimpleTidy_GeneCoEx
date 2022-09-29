@@ -40,6 +40,7 @@ A simple gene co-expression analyses workflow powered by tidyverse and graph ana
          - [Gene co-expression graphs](https://github.com/cxli233/SimpleTidy_GeneCoEx#gene-co-expression-graphs)
 7. [Mean separation plots](https://github.com/cxli233/SimpleTidy_GeneCoEx#mean-separation-plots-for-candidate-genes)
     - [Pull out direct neighbors](https://github.com/cxli233/SimpleTidy_GeneCoEx#pull-out-direct-neighbors)
+    - [Write out results](https://github.com/cxli233/SimpleTidy_GeneCoEx#write-out-results)
 
 # Introduction 
 This is a gene co-expression analysis workflow powered by tidyverse and graph analyses. 
@@ -1599,7 +1600,7 @@ See [igraph layouts](https://igraph.org/r/doc/layout_.html), [ggraph layouts](ht
 
 # Mean separation plots for candidate genes 
 ## Pull out direct neighbors 
-We did a bunch of analyes, now what? 
+We did a bunch of analyzes, now what? 
 A common "ultimate" goal for gene co-expression analyses is to find new candidate genes, which are genes co-expressed with bait genes. 
 After doing network analysis, this is very easy to find. 
 We can either look at what other genes are in module 8, which both our bait genes are in, or we can look at direct neighbors of bait genes. 
@@ -1679,6 +1680,20 @@ ggsave("../Results/Candidate_genes_TPM.png", height = 4.8, width = 8, bg = "whit
 ![Candidate_genes_TPM.svg](https://github.com/cxli233/SimpleTidy_GeneCoEx/blob/main/Results/Candidate_genes_TPM.svg)
 
 As expected, they all go up as the fruit ripens. 
+
+## Write out results
+Finally, I want to write out the neighbors of out bait genes as a table onto the hard drive. 
+That's easy. 
+
+```{r}
+Bait_neighors <- M82_funct_anno %>% 
+  filter(X1 %in% names(neighbors_of_PG_PSY1)) %>% 
+  rename(Gene_ID = X1,
+         annotation = X2)
+
+head(Bait_neighors)
+write_excel_csv(Bait_neighors, "../Results/PG_PSY1_neighbors.csv", col_names = T)
+```
 
 # Conclusions
 Well, we are pretty much done!  
