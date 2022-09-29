@@ -23,7 +23,7 @@ A simple gene co-expression analyses workflow powered by tidyverse and graph ana
     - [Average up the reps](https://github.com/cxli233/SimpleTidy_GeneCoEx#average-up-the-reps)
     - [z score](https://github.com/cxli233/SimpleTidy_GeneCoEx#z-score)
     - [Gene selection](https://github.com/cxli233/SimpleTidy_GeneCoEx#gene-selection)
-        - ["Objective" ways to select high variance genes?]()
+        - ["Objective" ways to select high variance genes?](https://github.com/cxli233/SimpleTidy_GeneCoEx#objective-ways-to-select-high-variance-genes)
     - [Gene-wise correlation](https://github.com/cxli233/SimpleTidy_GeneCoEx#gene-wise-correlation)
     - [Edge selection](https://github.com/cxli233/SimpleTidy_GeneCoEx#edge-selection)
         - [t distribution approximation](https://github.com/cxli233/SimpleTidy_GeneCoEx#t-distribution-approximation)
