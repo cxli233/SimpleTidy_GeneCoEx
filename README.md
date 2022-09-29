@@ -23,6 +23,7 @@ A simple gene co-expression analyses workflow powered by tidyverse and graph ana
     - [Average up the reps](https://github.com/cxli233/SimpleTidy_GeneCoEx#average-up-the-reps)
     - [z score](https://github.com/cxli233/SimpleTidy_GeneCoEx#z-score)
     - [Gene selection](https://github.com/cxli233/SimpleTidy_GeneCoEx#gene-selection)
+        - ["Objective" ways to select high variance genes?]()
     - [Gene-wise correlation](https://github.com/cxli233/SimpleTidy_GeneCoEx#gene-wise-correlation)
     - [Edge selection](https://github.com/cxli233/SimpleTidy_GeneCoEx#edge-selection)
         - [t distribution approximation](https://github.com/cxli233/SimpleTidy_GeneCoEx#t-distribution-approximation)
@@ -47,12 +48,12 @@ This is by no means the best workflow, but it is conceptually simple if you are 
 The goal of this workflow is identify genes co-expressed with known genes of interest. 
 
 * Author: Chenxin Li, Postdoctoral Research Associate, Center for Applied Genetic Technologies, University of Georgia
-* Contact: Chenxin.Li@uga.edu 
+* Contact: Chenxin.Li@uga.edu | [@ChenxinLi2](https://twitter.com/ChenxinLi2)
 
 ## Example data 
 We will be using the [Shinozaki et al., 2018](https://www.nature.com/articles/s41467-017-02782-9 ) tomato fruit developmental transcriptomes as our practice data.
 This dataset contains 10 developmental stages and 11 tissues. 
-The goal of this example is to identify genes co-expressed with known players of fruit ripening. 
+The goal for this example is to identify genes co-expressed with known players of fruit ripening. 
 The expression matrix is available [online](https://doi.org/10.5281/zenodo.7117357) as a .gz file. 
 You can gunzip it and move it into the `Data/` directory. 
 
@@ -69,7 +70,7 @@ library(viridis)
 
 set.seed(666)
 ```
-The [tidyverse](https://www.tidyverse.org/) and [igraph](https://igraph.org/) packages will be doing a lot of the heavy lifting. 
+The [tidyverse](https://www.tidyverse.org/) and [igraph](https://igraph.org/) packages will be doing most of the heavy lifting. 
 [ggraph](https://ggraph.data-imaginist.com/) is a grammar of graphics extension for `igraph`, which provides effective visualization of network graphs. 
 
 The rest of the packages are mainly for data visualization and not required for the gene expression analyses. 
@@ -157,8 +158,8 @@ Key questions are:
 * What are the levels of replication?
 
 This is where the metadata come in handy.
-## Major factors in the experiment
 
+## Major factors in the experiment
 ```{r}
 Metadata %>% 
   group_by(dev_stage) %>% 
@@ -287,7 +288,7 @@ head(pc_importance, 20)
 ## PC10	8.105687	0.00919	0.71129
 ```
 `prcomp()` performs PCA for you, given a numeric matrix, which is just the transposed `Exp_table_log_wide`, but without the gene ID column. 
-`as.data.frame(t(summary(my_pca)$importance))` saves the sd and proportion of variance into a data table. 
+`as.data.frame(t(summary(my_pca)$importance))` saves the standard deviation and proportion of variance into a data table. 
 In this case, the 1st PC accounts for 43% of the variance in this experiment.
 The 2nd PC accounts for 10% of the variance.  
 
@@ -412,21 +413,21 @@ ggsave("../Results/PCA_by_stage_tissue.png", height = 3.5, width = 8.5, bg = "wh
 ```
 ![PCA_by_stage_tissue.svg](https://github.com/cxli233/SimpleTidy_GeneCoEx/blob/main/Results/PCA_by_stage_tissue.svg)
 
-Now the x-axis (PC2) clearly separates developmental stages young to old from left to right. 
+Now the x-axis (PC2) clearly separates developmental stages: young to old from left to right. 
 The y-axis (PC3) clearly separates seeds from everything else. 
 
 Thus, in terms of variance contribution, dissection method > stage > tissue. 
 We will use this information to guide downstream visualization. 
 
 Now we have to make a decision. 
-The fact that the major driver of variation is a technical factor may be a concern. 
+**The fact that the major driver of variation is a technical factor may be a concern.** 
 Perhaps LM samples are lower input and thus lower library complexity? I don't know.
 But to best separate biological variation from technical variation, we should do separate gene co-expression analyses for hand collected and LM samples. 
 
 For the sake of this exercise, let's focus on hand collected samples. 
 
 # Gene co-expression analyses 
-All of the above are preparatory work. It helps us understand the data.
+All of the above are preparatory work. It helped us understand the data.
 Now we are ready to do co-expression analyses. 
 
 There are multiple steps. Let's go over them one by one. 
@@ -458,7 +459,8 @@ This could take a moment. This step is doing a lot of mean calculations.
 
 ## Z score
 Once we averaged up the reps, we will standardize the expression pattern using z score. 
-A z score is the difference from mean over the standard deviation.
+A z score is the difference from mean over the standard deviation, i.e., $z = (x - mean) \over sd$
+
 It standardize the expression pattern of each gene to mean = 0, sd = 1. 
 It is not absolutely necessary, but I have found including this step to produce results that better capture the underlying biology.
 
@@ -478,10 +480,10 @@ Again, the advantage of a tidyverse workflow is you let `group_by()` do all the 
 The next step is correlating each gene to every other gene. 
 However, we have almost 67k genes in this dataset. The number of correlations scales to the square of number of genes. 
 To make things faster and less cumbersome, we can select only the high variance genes. 
-The underlying rationale is if a gene is expressed at a similar level across all samples, it is unlikely that is involved in the biology in a particular stage or tissue. 
+The underlying rationale is if a gene is expressed at a similar level across all samples, it is unlikely that is specifically involved in the biology in a particular stage or tissue. 
 
 There are multiple ways to selecting for high variance genes, and multiple cutoffs.
-For example, you can calculate the gene-wise variance for all genes, and take the upper third. 
+For example, you can calculate the gene-wise variance of logTPM for all genes, and take the upper third. 
 You can only take genes with a certain expression level (say > 5 tpm across all tissues), then take high variance gene. 
 These are arbitrary. You do you. 
 
@@ -500,7 +502,12 @@ dim(high_var_genes)
 ## [1] 22271     2
 ```
 
-This chunk of code computes the variance for each gene. 
+This chunk of code computes the variance of logTPM for each gene. 
+
+Selecting high variance genes using logTPM instead of TPM reduces the bias towards highly expressed genes. 
+For example, a gene with expression levels ranging from 100-1000 will have much higher variance than a gene with expression levels raning from 10-100. 
+However, in the log scale, say log10 base, the expression levels are scaled down to 2-3 and 1-2, respectively. 
+
 Again, this is completely relative to each gene itself. 
 Then I filtered for top 33% high var genes. 
 
@@ -552,6 +559,71 @@ Exp_table_long_averaged_z_high_var %>%
 
 The `%in%` operator filters gene_IDs that are present in `high_var_genes5000$gene_ID`, thus retaining only high var genes. 
 
+### "Objective" ways to select high variance genes? 
+You might ask, why did I choose 5000? Why not 3000? or 10000? 
+The short answer is this is arbitrary. 
+
+However, if you want some sort of "objective" way of defining gene selection cutoffs, you can use the variance distribution and your bait genes. 
+```{r}
+all_var_and_ranks <- Exp_table_long_averaged_z %>% 
+  group_by(gene_ID) %>% 
+  summarise(var = var(mean.logTPM)) %>% 
+  ungroup() %>% 
+  mutate(rank = rank(var, ties.method = "average")) 
+
+bait_var <- all_var_and_ranks %>% 
+  mutate(gene_ID2 = str_sub(gene_ID, start = 1, end = 19)) %>% 
+  filter(gene_ID2 %in% Baits$X2) %>% 
+  group_by(gene_ID2) %>% 
+  slice_max(n = 1, order_by = var)
+
+bait_var
+```
+The 1st chunk of code I calculate the variance for each gene and rank them.
+The 2nd chunk of code I look at the variance of bait genes. I only looked at the top variable isoform. 
+
+We can look at where your bait genes are along the variance distribution.
+```{r}
+all_var_and_ranks %>% 
+  ggplot(aes(x = var, y = rank)) +
+   geom_rect( 
+    xmax = max(high_var_genes5000$var), 
+    xmin = min(high_var_genes5000$var),
+    ymax = nrow(all_var_and_ranks),
+    ymin = nrow(all_var_and_ranks) - 5000,
+    fill = "dodgerblue2", alpha = 0.2
+    ) +
+  geom_line(size = 1.1) +
+  geom_hline(
+    data = bait_var, aes(yintercept = rank),
+    color = "tomato1", size = 0.8, alpha = 0.5
+  ) +
+  geom_vline(
+    data = bait_var, aes(xintercept = var), 
+    color = "tomato1", size = 0.8, alpha = 0.5
+  ) + 
+  labs(y = "rank",
+       x = "var(log10(TPM))",
+       caption = "Blue box = top 5000 high var genes.\nRed lines = bait genes.") +
+  theme_classic() +
+  theme(
+    text = element_text(size = 14),
+    axis.text = element_text(color = "black"),
+    plot.caption = element_text(hjust = 0)
+  )
+
+ggsave("../Results/gene_var_distribution.svg", height = 3.5, width = 3.5)
+ggsave("../Results/gene_var_distribution.png", height = 3.5, width = 3.5)
+```
+![gene_var_dist.svg](https://github.com/cxli233/SimpleTidy_GeneCoEx/blob/main/Results/gene_var_distribution.svg)
+
+From this graph, you can see a couple things:
+
+1. Our bait genes are among the most highly variable genes, and thus highly ranked. 
+2. If we just take the top 5000 genes, it takes pretty much the entire upper elbow of the graph. 
+
+I would argue that we don't need to put too many genes into a gene co-expression analysis, because if our bait genes is among the highest variance genes, genes co-expressed with them (the genes we are trying to find) should also be among the mostly highly variable. 
+
 ## Gene-wise correlation
 Now we can correlate each gene to every other gene. 
 The essence of this workflow is simple, so we will use a simple correlation. 
@@ -597,7 +669,7 @@ I have two ways to do this.
 
 ### t distribution approximation. 
 It turns out for each correlation coeff. r, you can approximate a t statistics, under some arbitrary assumptions. 
-The equation is $t = r * \sqrt{(n-2) \over (1-r^2)}$, where n is the number of observations. 
+The equation is $t = r \sqrt{(n-2) \over (1-r^2)}$, where n is the number of observations. 
 In this case, n is the number of tissue by stage combinations going into the correlation. Let's compute that first.
 
 ```{r}
@@ -671,7 +743,7 @@ Your computer may not have enough memory to run this step if you put in many gen
 In this case we only used 5000 genes, so no problem. 
 
 You can look at various adjusted p value cutoffs and the corresponding r value before proceeding. 
-Let's say we just look at positively correlated genes 
+Let's say we just look at positively correlated genes.
 
 ```{r}
 edge_table %>% 
@@ -794,8 +866,8 @@ ggsave("../Results/r_df_p_relationship.png", height = 3.5, width = 3.5, bg = "wh
 ```
 ![r_df_p_relationship.svg](https://github.com/cxli233/SimpleTidy_GeneCoEx/blob/main/Results/r_df_p_relationship.svg)
 
-As you can see, large size experiments (df = 80 or 100), you would reach p < 0.01 with r value between 0.2 and 0.4.
-However, for experiments with df at 5, you won't get to p = 0.01 unless you have r values closer to 0.9. 
+As you can see, large size experiments (df = 80 or 100), you would reach P < 0.01 with r value between 0.2 and 0.4.
+However, for experiments with df at 5, you won't get to P = 0.01 unless you have r values closer to 0.9. 
 The advantage of empirical determination using bait genes is that the correlation between baits are more or less independent of df. 
 
 Not that there are many negatively correlated genes, we can look at those at well.
@@ -891,7 +963,7 @@ We can make that.
 
 We need to two things. 
 
-1. Non-redundant gene IDs from the edge table
+1. Non-redundant gene IDs from the edge table. 
 2. Functional annotation, which I [downloaded](http://spuddb.uga.edu/m82_uga_v1_download.shtml ).
 
 ```{r}
@@ -1041,7 +1113,7 @@ module_peak_exp
 ```
 
 ### More module QC
-You can also QC the clusters via a line graph 
+You can also QC the clusters via a line graph.
 It will be too much to look at if graph all the modules, so let's just pick 2. 
 
 I picked: 
@@ -1154,8 +1226,8 @@ ggsave("../Results/module_line_plots.png", height = 4, width = 8.2, bg = "white"
 
 This code chunk is very long, because a few things:
 
-1. I reordered x-axis to reflect the biological time sequence
-2. Overlaid the average of clusters
+1. I reordered x-axis to reflect the biological time sequence.
+2. Overlaid the average of clusters.
 3. Added a color strip at the bottom to annotate stages, which reduces the amount of text on the figure. 
 
 There is obviously a lot of noice, but the pattern is apparent.
@@ -1164,8 +1236,8 @@ There is obviously a lot of noice, but the pattern is apparent.
 A good way to present these modules is to make a heat map. 
 To make an effective heatmap though, we need to take care of a few things.
 
-* reorder x and y axis
-* take care of outliers 
+* reorder x and y axis.
+* take care of outliers. 
 
 #### Check outliers 
 Let's take care of outliers first 
@@ -1414,32 +1486,70 @@ It's too much to look at if we graph the full network.
 On the other hand, there is not much to look at anyway for very large networks. 
 You just get messy hairballs. 
 
-Say we want to look at genes directly co-expressed with our one of our bait genes, PG 
+Say we want to look at genes directly co-expressed with our bait genes. 
 We can pull out their neighbors using the `neighbors()` function within `igraph()`.
 `igraph` comes with a set of network analysis functions that we can call. 
 
 For the sake of this example, let's just a couple genes from other clusters as well. 
+
 ```{r}
 neighbors_of_bait <- c(
-  neighbors(my_network, v = "Solly.M82.10G020850.1") %>% sample(50), # PG
-  neighbors(my_network, v = "Solly.M82.03G005440.1") %>% sample(50), # PSY1 
-  neighbors(my_network, v = "Solly.M82.01G041430.1") %>% sample(50), # Module 5 - early fruit - SAUR
-  neighbors(my_network, v = "Solly.M82.03G024180.1") %>% sample(50) # Module 8 - seed specific - "oleosin"
+  neighbors(my_network, v = "Solly.M82.10G020850.1"), # PG
+  neighbors(my_network, v = "Solly.M82.03G005440.1"), # PSY1 
+  neighbors(my_network, v = "Solly.M82.01G041430.1"), #  early fruit - SAUR
+  neighbors(my_network, v = "Solly.M82.03G024180.1") # seed specific - "oleosin"
 ) %>% 
   unique()  
 
-length(neighbors_of_bait)
+length(neighbors_of_bait)  
 ```
 
-For the sake of this example, let's just sample 200 neighbors to make the example run faster.
+```
+## [1] 2164
+```
 
 We can make a sub-network object. 
-First we subset nodes in the network.  
+First we subset edges in the network.
 
 ```{r}
-subnetwork_nodes <- my_network_modules %>% 
-  filter(gene_ID %in% names(neighbors_of_bait)) %>% 
-  inner_join(module_peak_exp, by = "module") %>% 
+subnetwork_edges <- edge_table_select %>% 
+  filter(from %in% names(neighbors_of_bait) &
+           to %in% names(neighbors_of_bait)) %>% 
+  mutate(bait = case_when(
+    str_detect(from, "Solly.M82.10G020850") |
+      str_detect(to, "Solly.M82.10G020850") ~ "PG",
+    str_detect(from, "Solly.M82.03G005440") |
+      str_detect(to, "Solly.M82.03G005440") ~ "PSY1",
+    str_detect(from, "Solly.M82.01G041430") |
+      str_detect(to, "Solly.M82.01G041430") ~ "SAUR",
+    str_detect(from, "Solly.M82.03G024180") |
+      str_detect(to, "Solly.M82.03G024180") ~ "Ole"
+  )) %>% 
+  group_by(bait) %>% 
+  slice_max(order_by = r, n = 2000) %>% 
+  ungroup()
+
+subnetwork_genes <- c(subnetwork_edges$from, subnetwork_edges$to) %>% unique()
+length(subnetwork_genes)
+dim(subnetwork_edges)
+```
+
+```
+## [1] 802
+## [1] 4237    7
+```
+We can constrain the edges such that both the start and end of edges are neighbors of baits. 
+I also filtered for highly correlated neighbors (top 2000 edges/bait based on r value). 
+We still have 4237 edges and 802 nodes. 
+Note that the most correlated edges for each bait many have overlaps, so the total number of edges remaining will be less than what you think. 
+
+Then we subset nodes in the network. 
+
+```{r}
+subnetwork_nodes <- node_table %>% 
+  filter(gene_ID %in% subnetwork_genes) %>% 
+  left_join(my_network_modules, by = "gene_ID") %>% 
+  left_join(module_peak_exp, by = "module") %>% 
   mutate(module_annotation = case_when(
     module == "5" ~ "early fruit",
     module == "8" ~ "seed",
@@ -1447,22 +1557,12 @@ subnetwork_nodes <- my_network_modules %>%
     T ~ "other"
   ))
 
-head(subnetwork_nodes)
+dim(subnetwork_nodes)
 ```
 
 I also append the data from module peak expression and add a new column called "module annotation".
-Then we subset edges.
-We constrain the edge table such that both starting and ending points of the edges must be present in the sub-network node table.
 
-```{r}
-subnetwork_edges <- edge_table_select %>% 
-  filter(from %in% subnetwork_nodes$gene_ID &
-           to %in% subnetwork_nodes$gene_ID) 
-
-head(subnetwork_edges)
-dim(subnetwork_edges)
-```
- 
+Then make sub-network object from subsetted edges and nodes.
 ```{r}
 my_subnetwork <- graph_from_data_frame(subnetwork_edges,
                                      vertices = subnetwork_nodes,
@@ -1500,6 +1600,9 @@ ggsave("../Results/subnetwork_graph.png", height = 4, width = 3, bg = "white")
 This could take a while. It is trying to draw many many lines and many dots. 
 Unsurprisingly, we get a bunch of distinct hairballs. 
 
+A good advice here is to check different graph layouts. 
+The layout of the graphs can have a **huge** impact on the appearance of the network graph. 
+See [igraph layouts](https://igraph.org/r/doc/layout_.html), [ggraph layouts](https://www.data-imaginist.com/2017/ggraph-introduction-layouts/), and [trying different layouts](https://github.com/cxli233/FriendsDontLetFriends#8-friends-dont-let-friends-make-network-graphs-without-trying-different-layouts) for more information. 
 
 # Mean separation plots for candidate genes 
 ## Pull out direct neighbors 
