@@ -1515,18 +1515,11 @@ First we subset edges in the network.
 subnetwork_edges <- edge_table_select %>% 
   filter(from %in% names(neighbors_of_bait) &
            to %in% names(neighbors_of_bait)) %>% 
-  mutate(bait = case_when(
-    str_detect(from, "Solly.M82.10G020850") |
-      str_detect(to, "Solly.M82.10G020850") ~ "PG",
-    str_detect(from, "Solly.M82.03G005440") |
-      str_detect(to, "Solly.M82.03G005440") ~ "PSY1",
-    str_detect(from, "Solly.M82.01G041430") |
-      str_detect(to, "Solly.M82.01G041430") ~ "SAUR",
-    str_detect(from, "Solly.M82.03G024180") |
-      str_detect(to, "Solly.M82.03G024180") ~ "Ole"
-  )) %>% 
-  group_by(bait) %>% 
-  slice_max(order_by = r, n = 2000) %>% 
+  group_by(from) %>% 
+  slice_max(order_by = r, n = 5) %>% 
+  ungroup() %>% 
+  group_by(to) %>% 
+  slice_max(order_by = r, n = 5) %>% 
   ungroup()
 
 subnetwork_genes <- c(subnetwork_edges$from, subnetwork_edges$to) %>% unique()
@@ -1535,12 +1528,12 @@ dim(subnetwork_edges)
 ```
 
 ```
-## [1] 802
-## [1] 4237    7
+## [1] 2109
+## [1] 5300    6
 ```
 We can constrain the edges such that both the start and end of edges are neighbors of baits. 
-I also filtered for highly correlated neighbors (top 2000 edges/bait based on r value). 
-We still have 4237 edges and 802 nodes. 
+I also filtered for highly correlated neighbors (top 5 edges/node based on r value). 
+We still have 5300 edges and 2109 nodes. 
 Note that the most correlated edges for each bait many have overlaps, so the total number of edges remaining will be less than what you think. 
 
 Then we subset nodes in the network. 
@@ -1551,7 +1544,7 @@ subnetwork_nodes <- node_table %>%
   left_join(my_network_modules, by = "gene_ID") %>% 
   left_join(module_peak_exp, by = "module") %>% 
   mutate(module_annotation = case_when(
-    module == "5" ~ "early fruit",
+    str_detect(module, "1|5|6|15|18|19|26|48|56|137") ~ "early fruit",
     module == "8" ~ "seed",
     module == "9" ~ "ripening",
     T ~ "other"
@@ -1572,7 +1565,7 @@ Use `graph_from_data_frame()` from `igraph` to build the sub-network.
 There are ways to directly filter existing networks, but I always find it more straightforward to build sub-network de novo from filtered edge and node tables.
 
 ```{r}
-my_subnetwork %>% 
+ my_subnetwork %>% 
   ggraph(layout = "kk", circular = F) +
   geom_edge_diagonal(color = "grey70", width = 0.5, alpha = 0.5) +
   geom_node_point(alpha = 0.8, color = "white", shape = 21, size = 2,
@@ -1591,8 +1584,8 @@ my_subnetwork %>%
     title = element_text(size = 12)
   )
 
-ggsave("../Results/subnetwork_graph.svg", height = 4, width = 3, bg = "white")
-ggsave("../Results/subnetwork_graph.png", height = 4, width = 3, bg = "white")
+ggsave("../Results/subnetwork_graph.svg", height = 5, width = 4, bg = "white")
+ggsave("../Results/subnetwork_graph.png", height = 5, width = 4, bg = "white")
 ```
 
 ![subnetwork_graph.svg](https://github.com/cxli233/SimpleTidy_GeneCoEx/blob/main/Results/subnetwork_graph.svg)
