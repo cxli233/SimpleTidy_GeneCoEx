@@ -31,7 +31,7 @@ A simple gene co-expression analyses workflow powered by tidyverse and graph ana
     - [Module detection](https://github.com/cxli233/SimpleTidy_GeneCoEx#module-detection)
          - [Build graph object](https://github.com/cxli233/SimpleTidy_GeneCoEx#build-graph-object)
          - [Graph based clustering](https://github.com/cxli233/SimpleTidy_GeneCoEx#graph-based-clustering)
-         - [What is the optimal resolution for module detection?](https://github.com/cxli233/SimpleTidy_GeneCoEx#what-is-the-optimal-resolution-for-module-detection?)
+         - [What is the optimal resolution for module detection?](https://github.com/cxli233/SimpleTidy_GeneCoEx#what-is-the-optimal-resolution-for-module-detection)
          - [Module QC](https://github.com/cxli233/SimpleTidy_GeneCoEx#module-quality-control)
      - [Module-treatment correspondance](https://github.com/cxli233/SimpleTidy_GeneCoEx#module-treatment-correspondance)
          - [More module QC](https://github.com/cxli233/SimpleTidy_GeneCoEx#more-module-qc)
