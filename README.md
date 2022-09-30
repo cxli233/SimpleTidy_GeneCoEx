@@ -793,7 +793,7 @@ edge_table %>%
 ```
 Different isoforms of the same gene is highly correlated, so that's good to see. 
 
-```{r}
+```R
 edge_table %>% 
   filter(str_detect(from, "Solly.M82.10G020850") &
            str_detect(to,"Solly.M82.03G005440") |
