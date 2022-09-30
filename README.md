@@ -60,7 +60,7 @@ The expression matrix is available [online](https://doi.org/10.5281/zenodo.71173
 You can gunzip it and move it into the `Data/` directory. 
 
 # Dependencies 
-```{r}
+```R
 library(tidyverse)
 library(igraph)
 library(ggraph)
@@ -101,7 +101,7 @@ My go-to is kallisto, but you do you. The requirements are:
 * Estimation of gene expression abundance, in units of TPM or FPKM. 
 * Each row is a gene, and each column is a library. 
 
-```{r}
+```R
 Exp_table <- read_csv("../Data/Shinozaki_tpm_all.csv", col_types = cols())
 head(Exp_table)
 dim(Exp_table)
@@ -119,7 +119,7 @@ Metadata are the data of the data, the biological and technical descriptions for
 * If you downloaded your data from [SRA](https://www.ncbi.nlm.nih.gov/sra), you can fetch the metadata associated with the submission. You can use [E-utilities](https://www.ncbi.nlm.nih.gov/books/NBK179288/) to fetch metadata given an accession number. 
 * If you are analyzing unpublished data, contact your colleagues who generated the samples for metadata.
 
-```{r}
+```R
 Metadata <- read_excel("../Data/Shinozaki_datasets_SRA_info.xlsx")
 head(Metadata)
 dim(Metadata)
@@ -141,7 +141,7 @@ In this example, we have two bait genes, `PG` and `PSY1`.
 * `PG` is involved in making the fruit soft [(review)](https://www.annualreviews.org/doi/pdf/10.1146/annurev.pp.42.060191.003331).
 * `PSY1` is involved in producing the red color of the fruit [(ref)](https://link.springer.com/article/10.1007/BF00047400). 
 
-```{r}
+```R
 Baits <- read_delim("../Data/Genes_of_interest.txt", delim = "\t", col_names = F, col_types = cols())
 head(Baits)
 ```
@@ -162,7 +162,7 @@ Key questions are:
 This is where the metadata come in handy.
 
 ## Major factors in the experiment
-```{r}
+```R
 Metadata %>% 
   group_by(dev_stage) %>% 
   count()
@@ -190,7 +190,7 @@ Inspecting the metadata, each of MG, Br, and PK are subdivided into 3 "stages" -
 But these "stages" are not time points, they are refering to location of the fruit. 
 We will have to fix this later. 
 
-```{r}
+```R
 Metadata %>% 
   group_by(tissue) %>% 
   count()
@@ -202,7 +202,7 @@ Metadata %>%
 Looks like there are 11 tissues. The paper also indicates there are 11 tissues. We are good here. 
 
 ## Levels of replication
-```{r}
+```R
 Metadata %>% 
   group_by(tissue, dev_stage) %>% 
   count()
@@ -244,7 +244,7 @@ The first thing for tidyverse workflow is going to from wide format to tidy (or 
 In tidy format, each row is an observation, and each column is a variable.
 We can go from wide to long using the `pivot_longer()` function. 
 
-```{r}
+```R
 Exp_table_long <- Exp_table %>% 
   rename(gene_ID = `...1`) %>% 
   pivot_longer(cols = !gene_ID, names_to = "library", values_to = "tpm") %>% 
@@ -259,7 +259,7 @@ All in one pipe. We will come back to this long table later. This long table is 
 However, the input data for PCA is a numeric matrix, so we have to go from long to wide back again. 
 To do that, we use `pivot_wider()`.
 
-```{r}
+```R
 Exp_table_log_wide <- Exp_table_long %>% 
   select(gene_ID, library, logTPM) %>% 
   pivot_wider(names_from = library, values_from = logTPM)
@@ -267,7 +267,7 @@ Exp_table_log_wide <- Exp_table_long %>%
 head(Exp_table_log_wide)
 ```
 
-```{r}
+```R
 my_pca <- prcomp(t(Exp_table_log_wide[, -1]))
 pc_importance <- as.data.frame(t(summary(my_pca)$importance))
 head(pc_importance, 20)
@@ -298,7 +298,7 @@ The 2nd PC accounts for 10% of the variance.
 To make a PCA plot, we will graph the data stored in `my_pca$x`, which stores the coordinates of each library in PC space. 
 Let's pull that data out and annotate them (with metadata). 
 
-```{r}
+```R
 PCA_coord <- my_pca$x[, 1:10] %>% 
   as.data.frame() %>% 
   mutate(Run = row.names(.)) %>% 
@@ -312,7 +312,7 @@ For the purpose of analysis, I only pulled the biologically relevant columns fro
 
 We noticed that there were in fact only 10 developmental stages, so let's fix that here. 
 
-```{r}
+```R
 PCA_coord <- PCA_coord %>% 
   mutate(stage = case_when(
     str_detect(dev_stage, "MG|Br|Pk") ~ str_sub(dev_stage, start = 1, end = 2),
@@ -358,7 +358,7 @@ In addition, some early stage samples were also collected uisng LM:
 
 > Due to their small size, laser  microdissection (LM) was used to harvest these six tissues at anthesis, as well as locular tissue, placenta, and seeds at 5 DPA.
 
-```{r}
+```R
 PCA_by_method <- PCA_coord %>% 
   ggplot(aes(x = PC1, y = PC2)) +
   geom_point(aes(fill = dissection_method), color = "grey20", shape = 21, size = 3, alpha = 0.8) +
@@ -382,7 +382,7 @@ ggsave("../Results/PCA_by_dissection_method.png", height = 3, width = 4, bg = "w
 First thing to watch out for is technical differences. It seems the dissection method IS the major source of variance, corresponding perfectly to PC1. 
 
 For biological interpretation, it's then better to look at PC2 and PC3.
-```{r}
+```R
 PCA_by_tissue <- PCA_coord %>% 
   ggplot(aes(x = PC2, y = PC3)) +
   geom_point(aes(fill = tissue), color = "grey20", shape = 21, size = 3, alpha = 0.8) +
@@ -439,7 +439,7 @@ We will first average up the reps to the level of tissue-stage combination.
 We are interested in the biological variation among tissue-stage combination, and less interested in the noise among reps of the same treatment. 
 Again, this is a *tidyverse based workflow*. 
 
-```{r}
+```R
 Exp_table_long_averaged <- Exp_table_long %>% 
   full_join(PCA_coord %>% 
               select(Run, `Sample Name`, tissue, dev_stage, dissection_method), 
@@ -466,7 +466,7 @@ A z score is the difference from mean over the standard deviation, i.e., $z = (x
 It standardize the expression pattern of each gene to mean = 0, sd = 1. 
 It is not absolutely necessary, but I have found including this step to produce results that better capture the underlying biology.
 
-```{r}
+```R
 Exp_table_long_averaged_z <- Exp_table_long_averaged %>% 
   group_by(gene_ID) %>% 
   mutate(z.score = (mean.logTPM - mean(mean.logTPM))/sd(mean.logTPM)) %>% 
@@ -489,7 +489,7 @@ For example, you can calculate the gene-wise variance of logTPM for all genes, a
 You can only take genes with a certain expression level (say > 5 tpm across all tissues), then take high variance gene. 
 These are arbitrary. You do you. 
 
-```{r}
+```R
 high_var_genes <- Exp_table_long_averaged_z %>% 
   group_by(gene_ID) %>% 
   summarise(var = var(mean.logTPM)) %>% 
@@ -518,7 +518,7 @@ The above chunk just listed the high var genes, now we need to filter those out 
 For the sake of this example, let's just take top 5000 genes with highest var as a quick exercise.
 You might want to take more genes in the analyses, but the more genes in the correlation, the slower everything will be.
 
-```{r}
+```R
 high_var_genes5000 <- high_var_genes %>% 
   slice_max(order_by = var, n = 5000) 
 
@@ -526,7 +526,7 @@ head(high_var_genes5000)
 ```
 A good way to check if you have included enough genes in your analyses is to check if your bait genes are among the top var genes. 
 
-```{r}
+```R
 high_var_genes5000 %>% 
   filter(str_detect(gene_ID, Baits$X2[1]))
 
@@ -543,7 +543,7 @@ Both are present in the top 5000, so that's good.
 Note that incidentally, this gene expression matrix is at the level of isoforms. 
 I would do it on only the representative gene models (longest gene model), but this particular matrix that I have access to is quantifying at the level of isoforms.
 
-```{r}
+```R
 Exp_table_long_averaged_z_high_var <- Exp_table_long_averaged_z %>% 
   filter(gene_ID %in% high_var_genes5000$gene_ID)
 
@@ -566,7 +566,7 @@ You might ask, why did I choose 5000? Why not 3000? or 10000?
 The short answer is this is arbitrary. 
 
 However, if you want some sort of "objective" way of defining gene selection cutoffs, you can use the variance distribution and your bait genes. 
-```{r}
+```R
 all_var_and_ranks <- Exp_table_long_averaged_z %>% 
   group_by(gene_ID) %>% 
   summarise(var = var(mean.logTPM)) %>% 
@@ -585,7 +585,7 @@ The 1st chunk of code I calculate the variance for each gene and rank them.
 The 2nd chunk of code I look at the variance of bait genes. I only looked at the top variable isoform. 
 
 We can look at where your bait genes are along the variance distribution.
-```{r}
+```R
 all_var_and_ranks %>% 
   ggplot(aes(x = var, y = rank)) +
    geom_rect( 
@@ -633,7 +633,7 @@ If you want, you can use fancier methods such as [GENIE3](https://www.bioconduct
 
 We will use the `cor()` function in R. But the `cor()` only take vector or matrix as input, so we need to go from long to wide again. 
 
-```{r}
+```R
 z_score_wide <- Exp_table_long_averaged_z_high_var %>% 
   select(gene_ID, `Sample Name`, z.score) %>% 
   pivot_wider(names_from = `Sample Name`, values_from = z.score) %>% 
@@ -647,7 +647,7 @@ After long to wide transformation, the `Sample Name` column now becomes the colu
 Then we produce the correlation matrix. The underlying math here is R takes each column of a matrix and correlates it to every other columns. 
 To get this to work on our wide table, we remove the `gene_ID` column, transpose it, and feed it into `cor()`.  
 
-```{r}
+```R
 cor_matrix <- cor(t(z_score_wide[, -1]))
 dim(cor_matrix)
 ```
@@ -674,7 +674,7 @@ It turns out for each correlation coeff. r, you can approximate a t statistics, 
 The equation is $t = r \sqrt{(n-2) \over (1-r^2)}$, where n is the number of observations. 
 In this case, n is the number of tissue by stage combinations going into the correlation. Let's compute that first.
 
-```{r}
+```R
 number_of_tissue_stage <- ncol(z_score_wide) - 1
 number_of_tissue_stage
 ```
@@ -687,7 +687,7 @@ In this case, it is 84. There are two way to find it.
 The first way is the number of columns in the z score wide table - 1, because the 1st column is gene ID. 
 The other way is using the parsed metadata, which is now part of `PCA_coord`. 
 
-```{r}
+```R
 PCA_coord %>% 
   filter(dissection_method == "Hand") %>% 
   group_by(tissue, dev_stage) %>% 
@@ -702,7 +702,7 @@ PCA_coord %>%
 Both methods say we have 84 unique tissue by stage combinations that were hand collected. 
 We are good to proceed. 
 
-```{r}
+```R
 cor_matrix_upper_tri <- cor_matrix
 cor_matrix_upper_tri[lower.tri(cor_matrix_upper_tri)] <- NA
 ```
@@ -717,7 +717,7 @@ This step can take a while. The larger the matrix, the slower it is.
 Now we can compute a t statistic from r and compute a p value using the t distribution. 
 Again, this is a tidyverse workflow, so brace yourself for many `%>%`. 
 
-```{r}
+```R
 edge_table <- cor_matrix_upper_tri %>% 
   as.data.frame() %>% 
   mutate(from = row.names(cor_matrix)) %>% 
@@ -747,7 +747,7 @@ In this case we only used 5000 genes, so no problem.
 You can look at various adjusted p value cutoffs and the corresponding r value before proceeding. 
 Let's say we just look at positively correlated genes.
 
-```{r}
+```R
 edge_table %>% 
   filter(r > 0) %>% 
   filter(FDR < 0.05) %>% 
@@ -780,7 +780,7 @@ You can use the bait genes to determine the cutoff if you know two bait genes ar
 The underlying assumption is if two bait genes are involved in the same process, they might be co-expressed. 
 Because this selection method is based on empirical observations, I argue this is better than using an arbitrary p value cutoff.
 
-```{r}
+```R
 edge_table %>% 
   filter(str_detect(from, "Solly.M82.03G005440") &
            str_detect(to,"Solly.M82.03G005440")) 
@@ -813,7 +813,7 @@ Base on this empirical observation, we can say we cut off at the vicinity of 0.7
 Note that this is way more stringent than cutting off at FDR < 0.01 (r > 0.27). 
 
 You can also look at the distribution of r values. 
-```{r}
+```R
 edge_table %>% 
   slice_sample(n = 20000) %>% 
   ggplot(aes(x = r)) +
@@ -840,7 +840,7 @@ Why do I warn against determining cutoffs using p values alone?
 Because p value is a function of both effect size (r) and degrees of freedom (df). 
 Experiments with larger df produces smaller p values given the same effect size. 
 Let's make a graph to illustrate that:
-```{r}
+```R
 t_dist_example <- expand.grid(
   df = c(2, 5, 10, 50, 80, 100),
   r = c(0.2, 0.3, 0.5, 0.7, 0.8, 0.9, 0.99)
@@ -875,7 +875,7 @@ The advantage of empirical determination using bait genes is that the correlatio
 Not that there are many negatively correlated genes, we can look at those at well.
 But for the sake of this example, let's just look at positively correlated genes. 
 
-```{r}
+```R
 edge_table_select <- edge_table %>% 
   filter(r >= 0.7)
 
@@ -891,7 +891,7 @@ Is this a perfect cutoff calling method? No.
 Is this method grounded in sound understanding of statistics, heuristics, and guided by the biology? Yes.
 
 Before we move forward, we can examine the correlation between two bait genes using a scatter plot. 
-```{r}
+```R
  Bait_cor_by_stage <- z_score_wide %>% 
   filter(gene_ID == "Solly.M82.10G020850.1" |
            gene_ID == "Solly.M82.03G005440.1") %>% 
@@ -968,12 +968,12 @@ We need to two things.
 1. Non-redundant gene IDs from the edge table. 
 2. Functional annotation, which I [downloaded](http://spuddb.uga.edu/m82_uga_v1_download.shtml ).
 
-```{r}
+```R
 M82_funct_anno <- read_delim("../Data/M82.functional_annotation.txt", delim = "\t", col_names = F, col_types = cols())
 head(M82_funct_anno)
 ```
 
-```{r}
+```R
 node_table <- data.frame(
   gene_ID = c(edge_table_select$from, edge_table_select$to) %>% unique()
 ) %>% 
@@ -992,7 +992,7 @@ We have 4880 genes in this network, along with 1,230,395 edges.
 Note that 4880 is less than the 5000 top var genes we put in, because we filtered out some edges. 
 
 Now let's make the network object. 
-```{r}
+```R
 my_network <- graph_from_data_frame(
   edge_table_select,
   vertices = node_table,
@@ -1007,7 +1007,7 @@ Correlation is non-directional, because cor(A,B) = cor(B,A).
 
 ### Graph based clustering
 The next step is detect modules from the graph object. 
-```{r}
+```R
 modules <- cluster_leiden(my_network, resolution_parameter = 2, 
                           objective_function = "modularity")
 
@@ -1033,7 +1033,7 @@ Because:
 * Too low resolution leads to forcing genes with different expression patterns into the same module.
 * Too high resolution leads to many genes not contained in any one module. 
 
-```{r}
+```R
 optimize_resolution <- function(network, resolution){
   modules = network %>% 
     cluster_leiden(resolution_parameter = resolution,
@@ -1070,7 +1070,7 @@ Here I wrote a function to detect module, pull out number of modules that have >
 Then I can test a list of resolutions in this function. 
 Let's test a range of resolution from 0.25 to 5, in steps of 0.25.  
 
-```{r}
+```R
  optimization_results <- purrr::map_dfc(
   .x = seq(from = 0.25, to = 5, by = 0.25),
   .f = optimize_resolution, 
@@ -1089,7 +1089,7 @@ head(optimization_results)
 This could take a while. 
 We have the results organized into one tidy data table. We can graph it.
 
-```{r}
+```R
 Optimize_num_module <- optimization_results %>% 
   ggplot(aes(x = resolution, y = num_module)) +
   geom_line(size = 1.1, alpha = 0.8, color = "dodgerblue2") +
@@ -1135,7 +1135,7 @@ But you do you.
 Let's say we move on with module detection using a resolution of 2. 
 Next, we need to link the module membership to the gene IDs.
 
-```{r}
+```R
 my_network_modules <- data.frame(
   gene_ID = names(membership(modules)),
   module = as.vector(membership(modules)) 
@@ -1168,7 +1168,7 @@ Not all genes are contained in modules. They are just lowly connected genes.
 Note that Leiden clustering has a stochastic aspect. The membership maybe slightly different every time you run it. 
 Moving forward we will only use modules that have 5 or more genes. 
 
-```{r}
+```R
 module_5 <- my_network_modules %>% 
   group_by(module) %>% 
   count() %>% 
@@ -1184,7 +1184,7 @@ head(my_network_modules)
 We have a bunch of different modules now, how do we know if they make any sense? 
 One way to QC these modules is looking at our bait genes. 
 
-```{r}
+```R
 my_network_modules %>% 
   filter(gene_ID == "Solly.M82.10G020850.1" |
            gene_ID == "Solly.M82.03G005440.1")
@@ -1203,7 +1203,7 @@ The next key task is understanding the expression pattern of the clusters.
 Again, the essence of this workflow is simple, so we will use a simple method: peak expression.
 To do that, we append the module membership data back to the long table containing z scores.
 
-```{r}
+```R
 Exp_table_long_averaged_z_high_var_modules <- Exp_table_long_averaged_z_high_var %>% 
   inner_join(my_network_modules, by = "gene_ID")
 
@@ -1211,7 +1211,7 @@ head(Exp_table_long_averaged_z_high_var_modules)
 ```
 Now we can produce summary statistics for each cluster and look at their expression pattern using mean. 
 
-```{r}
+```R
 modules_mean_z <- Exp_table_long_averaged_z_high_var_modules %>% 
   group_by(module, dev_stage, tissue, `Sample Name`) %>% 
   summarise(mean.z = mean(z.score)) %>% 
@@ -1221,7 +1221,7 @@ head(modules_mean_z)
 ```
 
 Then we look at at which developmental stage and tissue is each module most highly expressed. 
-```{r}
+```R
 module_peak_exp <- modules_mean_z %>% 
   group_by(module) %>% 
   slice_max(order_by = mean.z, n = 1)
@@ -1238,7 +1238,7 @@ I picked:
 * module 5, which is most highly expressed in 5 DPA - an early expressing cluster.
 * module 9, where our bait genes are - a late expressing cluster. 
 
-```{r}
+```R
 module_line_plot <- Exp_table_long_averaged_z_high_var_modules %>% 
   mutate(order_x = case_when(
     str_detect(dev_stage, "5") ~ 1,
@@ -1358,7 +1358,7 @@ To make an effective heatmap though, we need to take care of a few things.
 
 #### Check outliers 
 Let's take care of outliers first 
-```{r}
+```R
 modules_mean_z$mean.z %>% summary()
 ```
 
@@ -1367,7 +1367,7 @@ modules_mean_z$mean.z %>% summary()
 # -1.7844 -0.6261 -0.2213  0.0000  0.6420  3.3779 
 ```
 You can see that the distribution of averaged z scores are more or less symmetrical from the 1st to 3rd quartiles. 
-```{r}
+```R
 quantile(modules_mean_z$mean.z, 0.95)
 ```
 
@@ -1377,7 +1377,7 @@ quantile(modules_mean_z$mean.z, 0.95)
 ```
 The 95th percentile of averaged z score is 1.48. We can probably roughly clipped the z-scores at 1.5 or -1.5
 
-```{r}
+```R
 modules_mean_z <- modules_mean_z %>% 
   mutate(mean.z.clipped = case_when(
     abs(mean.z) > 1.5 ~ 1.5,
@@ -1391,7 +1391,7 @@ This sets z scores > 1.5 or < -1.5 to 1.5 or 1.5. The rest remain unchanged.
 Let's say we graph modules on y axis, and stage/tissue on x-axis.
 Reordering columns are easy, we just do it by hand. 
 We already did it before. We can copy and paste that down here.
-```{r}
+```R
 modules_mean_z <- modules_mean_z %>% 
   mutate(order_x = case_when(
         str_detect(dev_stage, "5") ~ 1,
@@ -1427,7 +1427,7 @@ Ordering rows is not as straightforward.
 What I usually do is I reorder the rows based on their peak expression.
 We use the `module_peak_exp` table that we already made.
 
-```{r}
+```R
 module_peak_exp <- module_peak_exp %>% 
   mutate(order_y = case_when(
         str_detect(dev_stage, "5") ~ 1,
@@ -1452,7 +1452,7 @@ head(modules_mean_z_reorded)
 
 Because we know developmental stage is the major driver of variance in this dataset, so I only reordered the rows by peak expression across developmental stages, rather than both developmental stages and tissues.
 
-```{r}
+```R
 module_heatmap <- modules_mean_z_reorded %>% 
   ggplot(aes(x = tissue, y = as.factor(module))) +
   facet_grid(.~ dev_stage, scales = "free", space = "free") +
@@ -1609,7 +1609,7 @@ We can pull out their neighbors using the `neighbors()` function within `igraph(
 
 For the sake of this example, let's just a couple genes from other clusters as well. 
 
-```{r}
+```R
 neighbors_of_bait <- c(
   neighbors(my_network, v = "Solly.M82.10G020850.1"), # PG
   neighbors(my_network, v = "Solly.M82.03G005440.1"), # PSY1 
@@ -1628,7 +1628,7 @@ length(neighbors_of_bait)
 We can make a sub-network object. 
 First we subset edges in the network.
 
-```{r}
+```R
 subnetwork_edges <- edge_table_select %>% 
   filter(from %in% names(neighbors_of_bait) &
            to %in% names(neighbors_of_bait)) %>% 
@@ -1655,7 +1655,7 @@ Note that the most correlated edges for each bait many have overlaps, so the tot
 
 Then we subset nodes in the network. 
 
-```{r}
+```R
 subnetwork_nodes <- node_table %>% 
   filter(gene_ID %in% subnetwork_genes) %>% 
   left_join(my_network_modules, by = "gene_ID") %>% 
@@ -1673,7 +1673,7 @@ dim(subnetwork_nodes)
 I also append the data from module peak expression and add a new column called "module annotation".
 
 Then make sub-network object from subsetted edges and nodes.
-```{r}
+```R
 my_subnetwork <- graph_from_data_frame(subnetwork_edges,
                                      vertices = subnetwork_nodes,
                                      directed = F)
@@ -1681,7 +1681,7 @@ my_subnetwork <- graph_from_data_frame(subnetwork_edges,
 Use `graph_from_data_frame()` from `igraph` to build the sub-network.
 There are ways to directly filter existing networks, but I always find it more straightforward to build sub-network de novo from filtered edge and node tables.
 
-```{r}
+```R
  my_subnetwork %>% 
   ggraph(layout = "kk", circular = F) +
   geom_edge_diagonal(color = "grey70", width = 0.5, alpha = 0.5) +
@@ -1723,7 +1723,7 @@ We can either look at what other genes are in module 8, which both our bait gene
 `igraph` comes with a set of network analysis functions that we can call. 
 
 And we already did that earlier for the sub-network. 
-```{r}
+```R
 neighbors_of_PG_PSY1 <- c(
   neighbors(my_network, v = "Solly.M82.10G020850.1"), # PG
   neighbors(my_network, v = "Solly.M82.03G005440.1") # PSY1 
@@ -1742,14 +1742,14 @@ We can take a quick look at their functional annotation.
 
 Let's say you are interested in transcription factors (TFs). 
 There are many types of TFs. Let's say you are particularly interested in bHLH and GRAS type TFs. 
-```{r}
+```R
 my_TFs <- my_network_modules %>% 
   filter(gene_ID %in% names(neighbors_of_PG_PSY1)) %>% 
   filter(str_detect(functional_annotation, "GRAS|bHLH"))
 
 ```
 
-```{r}
+```R
 TF_TPM <- Exp_table_long %>% 
   filter(gene_ID %in% my_TFs$gene_ID) %>% 
   inner_join(PCA_coord, by = c("library"="Run")) %>% 
@@ -1801,7 +1801,7 @@ As expected, they all go up as the fruit ripens.
 Finally, I want to write out the neighbors of out bait genes as a table onto the hard drive. 
 That's easy. 
 
-```{r}
+```R
 Bait_neighors <- M82_funct_anno %>% 
   filter(X1 %in% names(neighbors_of_PG_PSY1)) %>% 
   rename(Gene_ID = X1,
