@@ -1,7 +1,52 @@
 # Simple Tidy GeneCoEx - a demonstration 
 A simple gene co-expression analyses workflow powered by tidyverse and graph analyses 
 
+![heat_responsive_modules.svg](https://github.com/cxli233/SimpleTidy_GeneCoEx/blob/main/Results/Terpary_module_line_plots_hr.svg) 
+
 # Table of Contents
+
+1. [Introduction](https://github.com/cxli233/SimpleTidy_GeneCoEx/blob/main/Stress_time_course_example.md#introduction)
+    - [Example data](https://github.com/cxli233/SimpleTidy_GeneCoEx/blob/main/Stress_time_course_example.md#example-data)
+2. [Dependencies](https://github.com/cxli233/SimpleTidy_GeneCoEx/blob/main/Stress_time_course_example.md#dependencies)
+3. [Required input](https://github.com/cxli233/SimpleTidy_GeneCoEx/blob/main/Stress_time_course_example.md#required-input)
+      - [Gene expression matrix](https://github.com/cxli233/SimpleTidy_GeneCoEx/blob/main/Stress_time_course_example.md#gene-expression-matrix)
+      - [Metadata](https://github.com/cxli233/SimpleTidy_GeneCoEx/blob/main/Stress_time_course_example.md#metadata)
+      - [Bait genes](https://github.com/cxli233/SimpleTidy_GeneCoEx/blob/main/Stress_time_course_example.md#bait-genes)
+4. [Experimental Design](https://github.com/cxli233/SimpleTidy_GeneCoEx/blob/main/Stress_time_course_example.md#experimental-design)
+     - [Major factors](https://github.com/cxli233/SimpleTidy_GeneCoEx/blob/main/Stress_time_course_example.md#major-factors)
+     - [Levels of replication](https://github.com/cxli233/SimpleTidy_GeneCoEx/blob/main/Stress_time_course_example.md#levels-of-replication)
+     - [Summary table](https://github.com/cxli233/SimpleTidy_GeneCoEx/blob/main/Stress_time_course_example.md#summary-table)
+5. [Global view of the experiment](https://github.com/cxli233/SimpleTidy_GeneCoEx/blob/main/Stress_time_course_example.md#global-view-of-the-experiment)
+    - [PCA](https://github.com/cxli233/SimpleTidy_GeneCoEx/blob/main/Stress_time_course_example.md#pca)
+    - [Graph PCA plot](https://github.com/cxli233/SimpleTidy_GeneCoEx/blob/main/Stress_time_course_example.md#graph-pca-plot)
+6. [Gene co-expression analyses](https://github.com/cxli233/SimpleTidy_GeneCoEx/blob/main/Stress_time_course_example.md#gene-co-expression-analyses)
+    - [Average up the reps](https://github.com/cxli233/SimpleTidy_GeneCoEx/blob/main/Stress_time_course_example.md#average-up-the-reps)
+    - [z score](https://github.com/cxli233/SimpleTidy_GeneCoEx/blob/main/Stress_time_course_example.md#z-score)
+    - [Gene selection](https://github.com/cxli233/SimpleTidy_GeneCoEx/blob/main/Stress_time_course_example.md#gene-selection)
+        - [Gene selection based on high variance](https://github.com/cxli233/SimpleTidy_GeneCoEx/blob/main/Stress_time_course_example.md#gene-selection-based-on-high-variance)
+        - ["Objective" ways to select high variance genes?](https://github.com/cxli233/SimpleTidy_GeneCoEx/blob/main/Stress_time_course_example.md#objective-ways-to-select-high-variance-genes)
+        - [Gene selection based on F statistics](https://github.com/cxli233/SimpleTidy_GeneCoEx/blob/main/Stress_time_course_example.md#gene-selection-based-on-f-statistics)
+        - [Comparison between two gene selection methods](https://github.com/cxli233/SimpleTidy_GeneCoEx/blob/main/Stress_time_course_example.md#comparison-between-two-gene-selection-methods)
+    - [Gene-wise correlation](https://github.com/cxli233/SimpleTidy_GeneCoEx/blob/main/Stress_time_course_example.md#gene-wise-correlation)
+    - [Edge selection](https://github.com/cxli233/SimpleTidy_GeneCoEx/blob/main/Stress_time_course_example.md#edge-selection)
+        - [t-distribution approximation](https://github.com/cxli233/SimpleTidy_GeneCoEx/blob/main/Stress_time_course_example.md#t-distribution-approximation)
+        - [Empirical determination](https://github.com/cxli233/SimpleTidy_GeneCoEx/blob/main/Stress_time_course_example.md#empirical-determination)
+    - [Module detection](https://github.com/cxli233/SimpleTidy_GeneCoEx/blob/main/Stress_time_course_example.md#module-detection)
+        - [Build graph object](https://github.com/cxli233/SimpleTidy_GeneCoEx/blob/main/Stress_time_course_example.md#build-graph-object) 
+        - [Optimize clustering resolution](https://github.com/cxli233/SimpleTidy_GeneCoEx/blob/main/Stress_time_course_example.md#optimize-clustering-resolution)
+        - [Graph based clustering](https://github.com/cxli233/SimpleTidy_GeneCoEx/blob/main/Stress_time_course_example.md#graph-based-clustering)
+        - [Module QC](https://github.com/cxli233/SimpleTidy_GeneCoEx/blob/main/Stress_time_course_example.md#moudle-qc)
+    - [Module-treatment correspondance](https://github.com/cxli233/SimpleTidy_GeneCoEx/blob/main/Stress_time_course_example.md#module-treatment-correspondance)
+        - [More module QC](https://github.com/cxli233/SimpleTidy_GeneCoEx/blob/main/Stress_time_course_example.md#more-module-qc)
+        - [Heat map representation](https://github.com/cxli233/SimpleTidy_GeneCoEx/blob/main/Stress_time_course_example.md#heat-map-representation)
+            - [Check outliers](https://github.com/cxli233/SimpleTidy_GeneCoEx/blob/main/Stress_time_course_example.md#check-outliers)
+            - [Reorder rows and columns](https://github.com/cxli233/SimpleTidy_GeneCoEx/blob/main/Stress_time_course_example.md#reorder-rows-and-columns)
+    - [Gene co-expression graphs](https://github.com/cxli233/SimpleTidy_GeneCoEx/blob/main/Stress_time_course_example.md#gene-co-expression-graphs) 
+7. [Pull out candidate genes](https://github.com/cxli233/SimpleTidy_GeneCoEx/blob/main/Stress_time_course_example.md#gene-co-expression-graphs)
+    - [Direct neighors](https://github.com/cxli233/SimpleTidy_GeneCoEx/blob/main/Stress_time_course_example.md#direct-neighors)
+    - [Mean separation plots](https://github.com/cxli233/SimpleTidy_GeneCoEx/blob/main/Stress_time_course_example.md#mean-separation-plots)
+    - [Write out results](https://github.com/cxli233/SimpleTidy_GeneCoEx/blob/main/Stress_time_course_example.md#mean-separation-plots)
+8. [Conclusions](https://github.com/cxli233/SimpleTidy_GeneCoEx/blob/main/Stress_time_course_example.md#conclusions)
 
 # Introduction
 This is a gene co-expression analysis workflow powered by tidyverse and graph analyses. 
@@ -59,7 +104,6 @@ My go-to is kallisto, but you do you. The requirements are:
 * Estimation of gene expression abundance, in units of TPM or FPKM. 
 * Each row is a gene, and each column is a library. 
 
-## Gene expression matrix
 ```R
 Exp_table <- read_excel("../Data/Moghaddam2022_data/Pacu.CVR.HeatStress.xlsx", 
     col_types = c("text", "numeric", "numeric", 
@@ -1665,7 +1709,7 @@ ggsave("../Results/Tepary_subnetwork_graph.svg", height = 5, width = 4, bg = "wh
 ggsave("../Results/Tepary_subnetwork_graph.png", height = 5, width = 4, bg = "white")
 ```
 
-[Tepary_subnetwork_graph.svg](https://github.com/cxli233/SimpleTidy_GeneCoEx/blob/main/Results/Tepary_subnetwork_graph.svg) 
+![Tepary_subnetwork_graph.svg](https://github.com/cxli233/SimpleTidy_GeneCoEx/blob/main/Results/Tepary_subnetwork_graph.svg) 
 
 I don't know how useful this actually is, other than this is somewhat visually impressive. 
 If you are more familiar with the biology, this type of visualization will be more informative, for example, if you highlight certain candidate genes on this network.
