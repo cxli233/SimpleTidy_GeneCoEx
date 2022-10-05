@@ -35,7 +35,7 @@ A simple gene co-expression analyses workflow powered by tidyverse and graph ana
         - [Build graph object](https://github.com/cxli233/SimpleTidy_GeneCoEx/blob/main/Stress_time_course_example.md#build-graph-object) 
         - [Optimize clustering resolution](https://github.com/cxli233/SimpleTidy_GeneCoEx/blob/main/Stress_time_course_example.md#optimize-clustering-resolution)
         - [Graph based clustering](https://github.com/cxli233/SimpleTidy_GeneCoEx/blob/main/Stress_time_course_example.md#graph-based-clustering)
-        - [Module QC](https://github.com/cxli233/SimpleTidy_GeneCoEx/blob/main/Stress_time_course_example.md#moudle-qc)
+        - [Module QC](https://github.com/cxli233/SimpleTidy_GeneCoEx/blob/main/Stress_time_course_example.md#module-qc)
     - [Module-treatment correspondance](https://github.com/cxli233/SimpleTidy_GeneCoEx/blob/main/Stress_time_course_example.md#module-treatment-correspondance)
         - [More module QC](https://github.com/cxli233/SimpleTidy_GeneCoEx/blob/main/Stress_time_course_example.md#more-module-qc)
         - [Heat map representation](https://github.com/cxli233/SimpleTidy_GeneCoEx/blob/main/Stress_time_course_example.md#heat-map-representation)
@@ -43,7 +43,7 @@ A simple gene co-expression analyses workflow powered by tidyverse and graph ana
             - [Reorder rows and columns](https://github.com/cxli233/SimpleTidy_GeneCoEx/blob/main/Stress_time_course_example.md#reorder-rows-and-columns)
     - [Gene co-expression graphs](https://github.com/cxli233/SimpleTidy_GeneCoEx/blob/main/Stress_time_course_example.md#gene-co-expression-graphs) 
 7. [Pull out candidate genes](https://github.com/cxli233/SimpleTidy_GeneCoEx/blob/main/Stress_time_course_example.md#gene-co-expression-graphs)
-    - [Direct neighors](https://github.com/cxli233/SimpleTidy_GeneCoEx/blob/main/Stress_time_course_example.md#direct-neighors)
+    - [Direct neighbors](https://github.com/cxli233/SimpleTidy_GeneCoEx/blob/main/Stress_time_course_example.md#direct-neighbors)
     - [Mean separation plots](https://github.com/cxli233/SimpleTidy_GeneCoEx/blob/main/Stress_time_course_example.md#mean-separation-plots)
     - [Write out results](https://github.com/cxli233/SimpleTidy_GeneCoEx/blob/main/Stress_time_course_example.md#mean-separation-plots)
 8. [Conclusions](https://github.com/cxli233/SimpleTidy_GeneCoEx/blob/main/Stress_time_course_example.md#conclusions)
@@ -59,8 +59,8 @@ The goal of this workflow is identify genes co-expressed with known genes of int
 
 ## Example data  
 For this demonstration, we will be using [Moghaddam et al., 2022](https://www.nature.com/articles/s41467-021-22858-x ). 
-In this study, the authors looked at gene expression of tepary bean in leaves under control and heat stress. 
-They sampled several time points during the stress treatment. 
+In this study, the authors looked at gene expression of tepary bean leaves under control and heat stress. 
+They sampled 5 time points during the stress treatment. 
 One of the goals of the experiment is to understand gene regulation in response to heat stress. 
 
 # Dependencies
@@ -127,7 +127,7 @@ dim(Exp_table)
 ```
 Looks like we have 27540 genes and 30 library. 
 According to the Methods section of the paper, the table was generated using Cufflinks. 
-The values in the table is FPKM. I prefer TPM values, but this will still work. 
+The values in the table is FPKM. I prefer TPM values, but this will work jsut fine. 
 According to author's notes, library `C_3hr_B2` is flagged with low correlation coefficient between other reps. 
 So let's throw it out upfront.
 
@@ -148,8 +148,8 @@ Exp_table %>%
 ## [1] 27541    30
 ## [1] 3
 ```
-For whatever reason there are 3 genes appearing 3 times in this gene expression matrix. 
-I have no idea why. It should not be. Let's fix that.
+For whatever reason there are 3 genes appearing more than once in this gene expression matrix. 
+I have no idea why. They should not be. Let's fix that.
 
 ```R
 Exp_table <- Exp_table %>% 
@@ -204,8 +204,9 @@ Baits
 ```
 I pulled out 4 trehalose-6 phosphate synthase (TPS) genes from the genome annotation. 
 It will be interesting to see their expression pattern in this heat stress time course. 
+
 # Experimental Design
-Before I start doing any analyses I would first try to wrap my head around the experimental design. 
+Before I start doing any analysis, I would first try to wrap my head around the experimental design. 
 Having a good understanding of the experimental design helps me decide how I want to analyze and visualize the data. 
 
 Key questions are:
@@ -250,7 +251,7 @@ Metadata %>%
 ## A tibble:10 × 3
 ## Groups:treatment, time_point [10]
 ```
-We have 10 unique treatment by time point combination. 2*5 = 10. We are good. 
+We have 10 unique treatment by time point combination. 2 * 5 = 10. We are good. 
 One of the combination only has 2 reps, because we threw out 1. The rest all have 3 reps. 
 10 * 3 - 1 = 29, matching the number of rows in the metadata table. This is very good. 
 
@@ -294,6 +295,7 @@ Exp_table_long <- Exp_table %>%
 
 nrow(Exp_table_long)/nrow(Exp_table)
 ```
+
 ```
 ## [1] 29
 ```
@@ -335,6 +337,7 @@ head(pc_importance, 20)
 ## PC9	3.238616	0.01611	0.90106	
 ## PC10	2.757507	0.01168	0.91273
 ```
+
 `prcomp()` performs PCA for you, given a numeric matrix, which is just the transposed `Exp_table_log_wide`, but without the gene ID column. 
 `as.data.frame(t(summary(my_pca)$importance))` saves the sd and proportion of variance into a data table. 
 In this case, the 1st PC accounts for 50% of the variance in this experiment.
@@ -343,6 +346,7 @@ The 2nd PC accounts for 13% of the variance. Taking a quick look, the first 20 P
 ## Graph PCA plot 
 To make a PCA plot, we will graph the data stored in `my_pca$x`, which stores the coordinates of each library in PC space. 
 Let's pull that data out and annotate them (with metadata).
+
 ```R
 PCA_coord <- my_pca$x[, 1:10] %>% 
   as.data.frame() %>% 
@@ -400,9 +404,9 @@ ggsave("../Results/Tepary_PCA_by_stage_tissue.png", height = 3.5, width = 8.5, b
 It might not make sense in the 1st glance, but time is circular! 
 24hr is very close to 1hr in the diurnal sense. 
 
-So PC1 separates early day to late day. PC2 separates control vs. heat treated plants. 
+So PC1 separates early day to mid day. PC2 separates control vs. heat treated plants. 
 So the major driver of variation in this dataset is time (in the diurnal sense), followed by our treatment. 
-Seeing this, we can expect a lot of interaction between the circadian clock and stress. 
+Seeing this, we can expect a lot of interaction between diurnal gene regulation and stress. 
 
 # Gene co-expression analyses
 All of the above are preparatory work. It helps us understand the data.
@@ -433,7 +437,7 @@ This could take a moment. This step is doing a lot of mean calculations.
 
 ## z score
 Once we averaged up the reps, we will standardize the expression pattern using z score. 
-A z score is the difference from mean over the standard deviation.
+A z score is the difference from mean over the standard deviation, or $z = (x - mean) \over sd$. 
 It standardize the expression pattern of each gene to mean = 0, sd = 1. 
 It is not absolutely necessary, but I have found including this step to produce results that better capture the underlying biology. 
 
@@ -453,13 +457,13 @@ Again, the advantage of a tidyverse workflow is you let `group_by()` do all the 
 The next step is correlating each gene to every other gene. 
 However, we have 27k genes in this dataset. The number of correlations scales to the square of number of genes. 
 To make things faster and less cumbersome, we can select only the high variance genes. 
-The underlying rationale is if a gene is expressed at a similar level across all samples, it is unlikely that is involved in the biology in a particular stage or tissue. 
+The underlying rationale is if a gene is expressed at a similar level across all samples, it is unlikely that is involved in the biology in a particular time point or treatment. 
 
 Another method is filter genes by F statistics. 
 This is a method that detects genes that are changing expression based on its change (signal) by noise ratio. 
 
 But before we do either of those, we can filter for expressed genes. 
-Let's say we filter for genes that are expressed in all reps of a time point-treatment combination.
+Let's say we filter for genes that are expressed in all reps of any time point-treatment combination.
 We can use an arbitrary cutoff of 5 FPKM. 
 Because our lowest level of replication is 2, let's filter for genes expressed with > 5 FPKM in >=2 libraries. 
 
@@ -476,7 +480,7 @@ dim(Expressed_genes)
 ```
 ## [1]  13196     2
 ```
-If we use > 5 FPKM in >=2 libraries, we are down to 13 k genes, just about half from what we started with. 
+If we use > 5 FPKM in >=2 libraries, we are down to 13k genes, just about half from what we started with. 
 Again, this is using some arbitrary cutoffs. You do you. 
 
 ### Gene selection based on high variance
@@ -680,7 +684,7 @@ F_high_var_comparison <- ANOVA_results %>%
 Here I set genes with F >= 2 as "high F", instead of using a p value cutoff. 
 P value is a function of sample size. 
 Since this experiment has a relatively low level of replication (n = 2 to 3), using p value strictly will be too stringent.
-F statistics on the other hand, is independent of sample size. 
+The F statistics on the other hand, is more or less independent of sample size. 
 
 ```R
 F_var_scatter <- F_high_var_comparison %>% 
@@ -879,7 +883,7 @@ There are a lot to unpack from these graphs.
 4. High F only genes seem to be more different at the level of treatments rather than time. 
 
 ...at least from the 4 examples we saw.
-Given the strong circadian component in this experiment (PC1), perhaps we can take the union of high F and high var genes for co-expression analysis. 
+Given the strong circadian/diurnal component in this experiment (PC1), perhaps we can take the union of high F and high var genes for co-expression analysis. 
 
 ```R
 high_var_or_high_F_genes <- F_high_var_comparison %>% 
@@ -896,12 +900,12 @@ head(Exp_table_long_averaged_z_high_var_or_high_F)
 ```
 ## [1] 9649 9
 ```
-We are putting in 9649 genes.
+We are putting in 9649 genes for co-expression analysis. 
 
 ## Gene-wise correlation
 Now we can correlate each gene to every other gene. 
 The essence of this workflow is simple, so we will use a simple correlation. 
-If you want, you can use fancier methods such as [GENIE3](https://www.bioconductor.org/packages/devel/bioc/vignettes/GENIE3/inst/doc/GENIE3.html ) 
+If you want, you can use fancier methods such as [GENIE3](https://www.bioconductor.org/packages/devel/bioc/vignettes/GENIE3/inst/doc/GENIE3.html ).
 
 We will use the `cor()` function in R. But the `cor()` only take vector or matrix as input, so we need to go from long to wide again.
 
@@ -944,9 +948,9 @@ I have two ways to do this.
 * Empirical determination using rank distribution. 
 
 ### t-distribution approximation
-It turns out for each correlation coeff. r, you can approximate a t statistics, under some arbitrary assumptions. 
+It turns out for each correlation coefficient r, you can approximate a t statistics, under some arbitrary assumptions. 
 The equation is $t = r \sqrt{(n-2) \over (1-r^2)}$, where n is the number of observations. 
-In this case, n is the number of tissue by stage combinations going into the correlation. Let's compute that first.
+In this case, n is the number of treatment by time point combinations going into the correlation. Let's compute that first.
 
 ```R
 number_of_time_treatment <- ncol(z_score_wide) - 1
@@ -956,7 +960,7 @@ number_of_time_treatment
 ```
 ## [1] 10
 ```
-In this case, it is 10 There are two way to find it. 
+In this case, it is 10. There are two way to find it. 
 The first way is the number of columns in the z score wide table - 1, because the 1st column is gene ID. 
 The other way is using the parsed metadata, which is now part of `PCA_coord`.
 
@@ -1180,7 +1184,7 @@ ggsave("../Results/Tepary_Bait_correlation.png", height = 4.5, width = 9, bg = "
 
 Here each dot is a library. You can annotate the libraries using metadata, which is now part of `PCA_coord`. 
 We can see that these two bait genes (involved in trehalose biosynthesis) have similar expression pattern. There are both up-regulated heat treatment. 
-Perhaps this is consistent with the hypothesis trehalose have protective roles under stress. 
+Perhaps this is consistent with the hypothesis trehalose has protective roles under stress. 
 
 ### Build graph object
 We will be using `igraph` to do some of the downstream analyses. It will do a lot of the heavy lifting for us. 
@@ -1291,7 +1295,8 @@ optimize_resolution <- function(network, resolution){
 }
 ```
 
-Here I wrote a function to detect module, pull out number of modules that have >= 5 genes, and count number of genes containedin modules that have >= 5 genes. All in one function. 
+Here I wrote a function to detect module, pull out number of modules that have >= 5 genes, and count number of genes containedin modules that have >= 5 genes. 
+All in one function. 
 
 Then I can test a list of resolutions in this function. 
 Let's test a range of resolution from 0.25 to 5, in steps of 0.25. 
@@ -1398,7 +1403,7 @@ my_network_modules <- my_network_modules %>%
 
 head(my_network_modules)
 ```
-### Moudle QC
+### Module QC
 We have a bunch of different modules now, how do we know if they make any sense? 
 One way to QC these modules is looking at our bait genes. 
 ```{r}
@@ -1408,6 +1413,12 @@ my_network_modules %>%
 ```
 Looks like they are in the same module, very good to see. 
 Remember, they are correlated with a r > 0.7; they should be in the same module.
+
+```
+## LocusName           module functional_annotation
+## Phacu.CVR.002G288900	4	Haloacid dehalogenase-like hydrolase (HAD) superfamily protein
+## Phacu.CVR.003G017200	4	UDP-Glycosyltransferase / trehalose-phosphatase family protein
+```
 
 ## Module-treatment correspondance
 The next key task is understanding the expression pattern of the clusters. 
@@ -1444,7 +1455,7 @@ Again, `group_by()` is doing a lot of heavy lifting here.
 
 ### More module QC
 You can also QC the clusters via a line graph 
-It will be too much to look at if graph all the modules, so let's just pick 2. 
+It will be too much to look at if graph all the modules, so let's just pick 3. 
 
 I picked: 
 
@@ -1507,6 +1518,13 @@ quantile(modules_mean_z$mean.z, c(0.05, 0.95))
 ```
 Looking at the quartiles and extremes of z score, we can probably clip the z score at +/- 1.5.
 
+```
+##    Min. 1st Qu.  Median    Mean 3rd Qu.    Max. 
+## -2.5865 -0.5289  0.1582  0.0000  0.6044  1.6226 
+##        5%       95% 
+## -1.636757  1.115807 
+```
+
 ```R
 modules_mean_z <- modules_mean_z %>% 
   mutate(mean.z.clipped = case_when(
@@ -1515,7 +1533,7 @@ modules_mean_z <- modules_mean_z %>%
   ))
 ```
 
-This sets z scores > 1.5 or < -1.5 to 1.5 or 1.5. The rest remain unchanged.
+This sets z scores > 1.5 or < -1.5 to 1.5 or -1.5, respectively. The rest remain unchanged.
 
 #### Reorder rows and columns 
 Let's say we graph modules on y axis, and time/treatment on x-axis.
@@ -1562,6 +1580,7 @@ First of all, the 12hr time point appears to be the "hot spot" for heat response
 We detected various heat responsive modules, with varying interaction with the diurnal pattern. 
 For example, module 4 is not diurnal in the control treatment but up-regulated during heat treatment. 
 While module 10 is up-regulated at heat treatment, it has a more robust diurnal pattern. 
+And also detected many heat repressed modules. 
 
 We can plot some of them. 
 I think modules 97, 10, and 7 look interesting. 
@@ -1612,7 +1631,7 @@ On the other hand, there is not much to look at anyway for very large networks.
 You just get messy hairballs. 
 
 Say we want to look at genes directly co-expressed with our bait genes. 
-We can pull out their neighbors using the `neighbors()` function within `igraph()`.
+We can pull out their neighbors using the `neighbors()` function within `igraph`.
 `igraph` comes with a set of network analysis functions that we can call. 
 
 For the sake of this example, let's just a couple genes from other clusters as well. 
@@ -1712,7 +1731,8 @@ ggsave("../Results/Tepary_subnetwork_graph.png", height = 5, width = 4, bg = "wh
 ![Tepary_subnetwork_graph.svg](https://github.com/cxli233/SimpleTidy_GeneCoEx/blob/main/Results/Tepary_subnetwork_graph.svg) 
 
 I don't know how useful this actually is, other than this is somewhat visually impressive. 
-If you are more familiar with the biology, this type of visualization will be more informative, for example, if you highlight certain candidate genes on this network.
+If you are more familiar with the biology, this type of visualization will be more informative. 
+For example, if you highlight certain candidate genes on this network.
 This could take a while. It is trying to draw many many lines and many dots. 
 Unsurprisingly, we get a bunch of distinct hairballs. 
 A good advice here is to check different graph layouts. 
@@ -1727,7 +1747,7 @@ We can either look at what other genes are in module 8, which both our bait gene
 `igraph` comes with a set of network analysis functions that we can call. 
 
 And we already did that earlier for the sub-network.
-## Direct neighors
+## Direct neighbors
 ```R
 neighbors_of_TPS <- c(
   neighbors(my_network, v = "Phacu.CVR.003G017200"), 
