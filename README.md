@@ -1380,12 +1380,13 @@ The 95th percentile of averaged z score is 1.48. We can probably roughly clipped
 ```R
 modules_mean_z <- modules_mean_z %>% 
   mutate(mean.z.clipped = case_when(
-    abs(mean.z) > 1.5 ~ 1.5,
+    mean.z > 1.5 ~ 1.5,
+    mean.z < -1.5 ~ -1.5,
     T ~ mean.z
   ))
 ```
 
-This sets z scores > 1.5 or < -1.5 to 1.5 or 1.5. The rest remain unchanged.
+This sets z scores > 1.5 or < -1.5 to 1.5 or -1.5, respectively. The rest remain unchanged.
 
 #### Reorder rows and columns 
 Let's say we graph modules on y axis, and stage/tissue on x-axis.
@@ -1604,7 +1605,7 @@ On the other hand, there is not much to look at anyway for very large networks.
 You just get messy hairballs. 
 
 Say we want to look at genes directly co-expressed with our bait genes. 
-We can pull out their neighbors using the `neighbors()` function within `igraph()`.
+We can pull out their neighbors using the `neighbors()` function within `igraph`.
 `igraph` comes with a set of network analysis functions that we can call. 
 
 For the sake of this example, let's just a couple genes from other clusters as well. 
