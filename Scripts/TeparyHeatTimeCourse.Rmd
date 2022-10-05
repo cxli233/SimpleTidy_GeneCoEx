@@ -1358,12 +1358,13 @@ Looking at the quartiles and extremes of z score, we can probably clip the z sco
 ```{r}
 modules_mean_z <- modules_mean_z %>% 
   mutate(mean.z.clipped = case_when(
-    abs(mean.z) > 1.5 ~ 1.5,
+    mean.z > 1.5 ~ 1.5,
+    mean.z < -1.5 ~ -1.5,
     T ~ mean.z
   ))
 ```
 
-This sets z scores > 1.5 or < -1.5 to 1.5 or 1.5. The rest remain unchanged. 
+This sets z scores > 1.5 or < -1.5 to 1.5 or -1.5, respectively. The rest remain unchanged. 
 
 #### Reorder rows and columns 
 Let's say we graph modules on y axis, and time/treatment on x-axis.
@@ -1576,7 +1577,8 @@ nrow(my_protein_kinase)
 Looks like there are 13 of them.
 
 ## Mean separation plots
-Let's say you are interested in a few of those kinases you found. We can also graph them. 
+Let's say you are interested in a few of those kinases you found. 
+We can also graph them. 
 ```{r}
 Exp_table_long %>% 
   filter(LocusName %in% my_protein_kinase[1:3, ]$LocusName) %>% 
