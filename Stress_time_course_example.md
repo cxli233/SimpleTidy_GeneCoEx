@@ -1574,7 +1574,7 @@ modules_mean_z_reordered %>%
 ggsave("../Results/Tepary_module_heatmap.svg", height = 6, width = 5, bg = "white")
 ggsave("../Results/Tepary_module_heatmap.png", height = 6, width = 5, bg = "white")
 ```
-![Tepary_module_heatmap.svg](https://github.com/cxli233/SimpleTidy_GeneCoEx/blob/main/Results/Tepary_module_heatmap.svg) 
+![Tepary_module_heatmap.svg](https://github.com/cxli233/SimpleTidy_GeneCoEx/blob/main/Results/Tepary_module_heatmap.svg)   
 
 First of all, the 12hr time point appears to be the "hot spot" for heat response. 
 We detected various heat responsive modules, with varying interaction with the diurnal pattern. 
