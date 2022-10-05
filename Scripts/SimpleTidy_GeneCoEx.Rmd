@@ -49,7 +49,7 @@ It requires R, RStudio, and the rmarkdown package.
 
 * R: [R Download](https://cran.r-project.org/bin/)
 * RStudio: [RStudio Download](https://www.rstudio.com/products/rstudio/download/)
-* rmarkdown can be installed using the intall packages interface in RStudio
+* rmarkdown can be installed using the install packages interface in RStudio
 
 # Required input
 The workflow requires 3 input. 
@@ -474,6 +474,71 @@ Exp_table_long_averaged_z_high_var %>%
 
 The `%in%` operator filters gene_IDs that are present in `high_var_genes5000$gene_ID`, thus retaining only high var genes. 
 
+### "Objective" ways to select high variance genes? 
+You might ask, why did I choose 5000? Why not 3000? or 10000? 
+The short answer is this is arbitrary. 
+
+However, if you want some sort of "objective" way of defining gene selection cutoffs, you can use the variance distribution and your bait genes. 
+
+```{r}
+all_var_and_ranks <- Exp_table_long_averaged_z %>% 
+  group_by(gene_ID) %>% 
+  summarise(var = var(mean.logTPM)) %>% 
+  ungroup() %>% 
+  mutate(rank = rank(var, ties.method = "average")) 
+
+bait_var <- all_var_and_ranks %>% 
+  mutate(gene_ID2 = str_sub(gene_ID, start = 1, end = 19)) %>% 
+  filter(gene_ID2 %in% Baits$X2) %>% 
+  group_by(gene_ID2) %>% 
+  slice_max(n = 1, order_by = var)
+
+bait_var
+```
+The 1st chunk of code I calculate the variance for each gene and rank them.
+The 2nd chunk of code I look at the variance of bait genes. I only looked at the top variable isoform. 
+
+We can look at where your bait genes are along the variance distribution
+```{r}
+all_var_and_ranks %>% 
+  ggplot(aes(x = var, y = rank)) +
+   geom_rect( 
+    xmax = max(high_var_genes5000$var), 
+    xmin = min(high_var_genes5000$var),
+    ymax = nrow(all_var_and_ranks),
+    ymin = nrow(all_var_and_ranks) - 5000,
+    fill = "dodgerblue2", alpha = 0.2
+    ) +
+  geom_line(size = 1.1) +
+  geom_hline(
+    data = bait_var, aes(yintercept = rank),
+    color = "tomato1", size = 0.8, alpha = 0.5
+  ) +
+  geom_vline(
+    data = bait_var, aes(xintercept = var), 
+    color = "tomato1", size = 0.8, alpha = 0.5
+  ) + 
+  labs(y = "rank",
+       x = "var(log10(TPM))",
+       caption = "Blue box = top 5000 high var genes.\nRed lines = bait genes.") +
+  theme_classic() +
+  theme(
+    text = element_text(size = 14),
+    axis.text = element_text(color = "black"),
+    plot.caption = element_text(hjust = 0)
+  )
+
+ggsave("../Results/gene_var_distribution.svg", height = 3.5, width = 3.5)
+ggsave("../Results/gene_var_distribution.png", height = 3.5, width = 3.5)
+```
+From this graph, you can see a couple things:
+
+1. Our bait genes are among the most highly variable genes, and thus highly ranked. 
+2. If we just take the top 5000 genes, it takes pretty much the entire upper elbow of the graph. 
+
+I would argue that we don't need to put too many genes into a gene co-expression analysis, because if our bait genes is among the highest variance genes, genes co-expressed with them should also be among the mostly highly variable. 
+
+
 ## Gene-wise correlation
 Now we can correlate each gene to every other gene. 
 The essence of this workflow is simple, so we will use a simple correlation. 
@@ -684,7 +749,7 @@ As you can see, large size experiments (df = 80 or 100), you would reach p < 0.0
 However, for experiments with df at 5, you won't get to p = 0.01 unless you have r values closer to 0.9. 
 The advantage of empirical determination using bait genes is that the correlation between baits are more or less independent of df. 
 
-Not that there are many negatively correlated genes, we can look at those at well.
+Note that there are many negatively correlated genes, we can look at those at well.
 But for the sake of this example, let's just look at positively correlated genes. 
 
 ```{r}
@@ -819,7 +884,118 @@ modules <- cluster_leiden(my_network, resolution_parameter = 2,
 You can play around with the resolution and see what you get. 
 The underlying math of `objective_function` is beyond me, but it specifies how the modules are computed. 
 
-Now we can link the module membership to the gene IDs.
+### What is the optimal resolution for module detection? 
+The optimal resolution for module detection differs between networks. 
+A key factor that contributes to the difference in optimal resolution is to what extent are nodes inter-connected. 
+
+Since this is a simple workflow, we can determine the optimal resolution using heuristics. 
+We can test a range of resolutions and monitor two key performance indexes:
+
+1. Optimize number of modules that have >= 5 genes.
+2. Optimize number of genes that are contained in modules that have >= 5 genes. 
+
+Because: 
+
+* Too low resolution leads to forcing genes with different expression patterns into the same module.
+* Too high resolution leads to many genes not contained in any one module. 
+
+```{r}
+optimize_resolution <- function(network, resolution){
+  modules = network %>% 
+    cluster_leiden(resolution_parameter = resolution,
+                   objective_function = "modularity")
+  
+  parsed_modules = data.frame(
+    gene_ID = names(membership(modules)),
+    module = as.vector(membership(modules)) 
+    )
+  
+  num_module_5 = parsed_modules %>% 
+    group_by(module) %>% 
+    count() %>% 
+    arrange(-n) %>% 
+    filter(n >= 5) %>% 
+    nrow() %>% 
+    as.numeric()
+  
+  num_genes_contained = parsed_modules %>% 
+    group_by(module) %>% 
+    count() %>% 
+    arrange(-n) %>% 
+    filter(n >= 5) %>% 
+    ungroup() %>% 
+    summarise(sum = sum(n)) %>% 
+    as.numeric()
+  
+  c(num_module_5, num_genes_contained)
+
+}
+```
+
+Here I wrote a function to detect module, pull out number of modules that have >= 5 genes, and count number of genes contained in modules that have >= 5 genes. All in one function. 
+
+Then I can test a list of resolutions in this function. 
+Let's test a range of resolution from 0.25 to 5, in steps of 0.25.  
+```{r}
+ optimization_results <- purrr::map_dfc(
+  .x = seq(from = 0.25, to = 5, by = 0.25),
+  .f = optimize_resolution, 
+  network = my_network
+) %>% 
+  t() %>% 
+  cbind(
+   resolution = seq(from = 0.25, to = 5, by = 0.25)
+  ) %>% 
+  as.data.frame() %>% 
+  rename(num_module = V1,
+         num_contained_gene = V2)
+
+head(optimization_results)
+```
+This could take a while. 
+We have the results organized into one tidy data table. We can graph it. 
+```{r}
+Optimize_num_module <- optimization_results %>% 
+  ggplot(aes(x = resolution, y = num_module)) +
+  geom_line(size = 1.1, alpha = 0.8, color = "dodgerblue2") +
+  geom_point(size = 3, alpha = 0.7) +
+  geom_vline(xintercept = 2, size = 1, linetype = 4) +
+  labs(x = "resolution parameter",
+       y = "num. modules\nw/ >=5 genes") +
+  theme_classic() +
+  theme(
+    text = element_text(size = 14),
+    axis.text = element_text(color = "black")
+  )
+
+Optimize_num_gene <- optimization_results %>% 
+  ggplot(aes(x = resolution, y = num_contained_gene)) +
+  geom_line(size = 1.1, alpha = 0.8, color = "violetred2") +
+  geom_point(size = 3, alpha = 0.7) +
+  geom_vline(xintercept = 2, size = 1, linetype = 4) +
+  labs(x = "resolution parameter",
+       y = "num. genes in\nmodules w/ >=5 genes") +
+  theme_classic() +
+  theme(
+    text = element_text(size = 14),
+    axis.text = element_text(color = "black")
+  )
+
+wrap_plots(Optimize_num_module, Optimize_num_gene, nrow = 2)
+
+ggsave("../Results/Optimize_resolution.svg", height = 5, width = 3.2, bg ="white")
+ggsave("../Results/Optimize_resolution.png", height = 5, width = 3.2, bg ="white")
+```
+You can see that there is a big jump for num. modules w/ >= 5 genes going from 1.75 to 2 resolution.
+The number of modules stabilizes at resolution >=2.5.
+However, if you look at number of contained genes, the story is a little different. 
+The number of contained genes is very stable until resolution > 1.5, after which the number of genes continues to diminish. 
+
+How do you decide? I would personally go for a compromise, in this case going with res. = 2. 
+But you do you. 
+
+Let's say we move on with module detection using a resolution of 2. 
+Next, we need to link the module membership to the gene IDs.
 ```{r}
 my_network_modules <- data.frame(
   gene_ID = names(membership(modules)),
@@ -931,7 +1107,7 @@ module_line_plot <- Exp_table_long_averaged_z_high_var_modules %>%
   )) %>% 
   mutate(dev_stage = reorder(dev_stage, order_x)) %>% 
   filter(module == "9" |
-           module == "5") %>% 
+           module == "5" ) %>% 
   ggplot(aes(x = dev_stage, y = z.score)) +
   facet_grid(module ~ tissue) +
   geom_line(aes(group = gene_ID), alpha = 0.3, color = "grey70") +
@@ -1045,12 +1221,13 @@ The 95th percentile of averaged z score is 1.48. We can probably roughly clipped
 ```{r}
 modules_mean_z <- modules_mean_z %>% 
   mutate(mean.z.clipped = case_when(
-    abs(mean.z) > 1.5 ~ 1.5,
+    mean.z > 1.5 ~ 1.5,
+    mean.z < -1.5 ~ -1.5,
     T ~ mean.z
   ))
 ```
 
-This sets z scores > 1.5 or < -1.5 to 1.5 or 1.5. The rest remain unchanged.  
+This sets z scores > 1.5 or < -1.5 to 1.5 or -1.5, respectively. The rest remain unchanged.  
 
 #### Reorder rows and columns 
 Let's say we graph modules on y axis, and stage/tissue on x-axis.
@@ -1267,7 +1444,7 @@ It's too much to look at if we graph the full network.
 On the other hand, there is not much to look at anyway for very large networks. 
 You just get messy hairballs. 
 
-Say we want to look at genes directly co-expressed with our one of our bait genes, PG 
+Say we want to look at genes directly co-expressed with our bait genes. 
 We can pull out their neighbors using the `neighbors()` function within `igraph()`.
 `igraph` comes with a set of network analysis functions that we can call. 
 
@@ -1276,47 +1453,57 @@ For the sake of this example, let's just a couple genes from other clusters as w
 
 ```{r}
 neighbors_of_bait <- c(
-  neighbors(my_network, v = "Solly.M82.10G020850.1") %>% sample(50), # PG
-  neighbors(my_network, v = "Solly.M82.03G005440.1") %>% sample(50), # PSY1 
-  neighbors(my_network, v = "Solly.M82.01G041430.1") %>% sample(50), #  early fruit - SAUR
-  neighbors(my_network, v = "Solly.M82.03G024180.1") %>% sample(50) # seed specific - "oleosin"
+  neighbors(my_network, v = "Solly.M82.10G020850.1"), # PG
+  neighbors(my_network, v = "Solly.M82.03G005440.1"), # PSY1 
+  neighbors(my_network, v = "Solly.M82.01G041430.1"), #  early fruit - SAUR
+  neighbors(my_network, v = "Solly.M82.03G024180.1") # seed specific - "oleosin"
 ) %>% 
   unique()  
 
 length(neighbors_of_bait)
 ```
-For the sake of this example, let's just sample ~200 neighbors to make the example run faster.
 
 We can make a sub-network object. 
-First we subset nodes in the network. 
+First we subset edges in the network.
 ```{r}
-subnetwork_nodes <- my_network_modules %>% 
-  filter(gene_ID %in% names(neighbors_of_bait)) %>% 
-  inner_join(module_peak_exp, by = "module") %>% 
+subnetwork_edges <- edge_table_select %>% 
+  filter(from %in% names(neighbors_of_bait) &
+           to %in% names(neighbors_of_bait)) %>% 
+  group_by(from) %>% 
+  slice_max(order_by = r, n = 5) %>% 
+  ungroup() %>% 
+  group_by(to) %>% 
+  slice_max(order_by = r, n = 5) %>% 
+  ungroup()
+
+subnetwork_genes <- c(subnetwork_edges$from, subnetwork_edges$to) %>% unique()
+length(subnetwork_genes)
+dim(subnetwork_edges)
+```
+
+We can constrain the edges such that both the start and end of edges are neighbors of baits. 
+I also filtered for highly correlated neighbors (top 5 edges/node based on r value). 
+We still have 5300 edges and 2109 nodes. 
+Note that the most correlated edges for each bait many have overlaps, so the total number of edges remaining will be less than what you think. 
+
+Then we subset nodes in the network. 
+```{r}
+subnetwork_nodes <- node_table %>% 
+  filter(gene_ID %in% subnetwork_genes) %>% 
+  left_join(my_network_modules, by = "gene_ID") %>% 
+  left_join(module_peak_exp, by = "module") %>% 
   mutate(module_annotation = case_when(
-    module == "5" ~ "early fruit",
+    str_detect(module, "1|5|6|15|18|19|26|48|56|137") ~ "early fruit",
     module == "8" ~ "seed",
     module == "9" ~ "ripening",
     T ~ "other"
   ))
 
-head(subnetwork_nodes)
 dim(subnetwork_nodes)
 ```
 I also append the data from module peak expression and add a new column called "module annotation".
-Then we subset edges.
-We constrain the edge table such that both starting and ending points of the edges must be present in the sub-network node table. 
 
-```{r}
-subnetwork_edges <- edge_table_select %>% 
-  filter(from %in% subnetwork_nodes$gene_ID &
-           to %in% subnetwork_nodes$gene_ID) 
-
-head(subnetwork_edges)
-dim(subnetwork_edges)
-```
-
-
+Then make sub-network object from subsetted edges and nodes. 
 ```{r}
 my_subnetwork <- graph_from_data_frame(subnetwork_edges,
                                      vertices = subnetwork_nodes,
@@ -1345,17 +1532,20 @@ my_subnetwork %>%
     title = element_text(size = 12)
   )
 
-ggsave("../Results/subnetwork_graph.svg", height = 4, width = 3, bg = "white")
-ggsave("../Results/subnetwork_graph.png", height = 4, width = 3, bg = "white")
+ggsave("../Results/subnetwork_graph.svg", height = 5, width = 4, bg = "white")
+ggsave("../Results/subnetwork_graph.png", height = 5, width = 4, bg = "white")
 ```
 
 This could take a while. It is trying to draw many many lines and many dots. 
 Unsurprisingly, we get a bunch of distinct hairballs. 
+A good advice here is to check different graph layouts. 
+The layout of the graphs can have a **huge** impact on the appearance of the network graph. 
+See [igraph layouts](https://igraph.org/r/doc/layout_.html), [ggraph layouts](https://www.data-imaginist.com/2017/ggraph-introduction-layouts/), and [trying different layouts](https://github.com/cxli233/FriendsDontLetFriends#8-friends-dont-let-friends-make-network-graphs-without-trying-different-layouts) for more information. 
 
 
 # Mean separation plots for candidate genes 
 ## Pull out direct neighbors 
-We did a bunch of analyes, now what? 
+We did a bunch of analyzes, now what? 
 A common "ultimate" goal for gene co-expression analyses is to find new candidate genes, which are genes co-expressed with bait genes. 
 After doing network analysis, this is very easy to find. 
 We can either look at what other genes are in module 8, which both our bait genes are in, or we can look at direct neighbors of bait genes. 
@@ -1429,6 +1619,22 @@ ggsave("../Results/Candidate_genes_TPM.png", height = 4.8, width = 8, bg = "whit
 ```
 As expected, they all go up as the fruit ripens. 
 
+## Write out results
+Finally, I want to write out the neighbors of out bait genes as a table onto the hard drive. 
+That's easy. 
+
+```{r}
+Bait_neighors <- M82_funct_anno %>% 
+  filter(X1 %in% names(neighbors_of_PG_PSY1)) %>% 
+  rename(Gene_ID = X1,
+         annotation = X2)
+
+head(Bait_neighors)
+write_excel_csv(Bait_neighors, "../Results/PG_PSY1_neighbors.csv", col_names = T)
+```
+
+
+# Conclusions
 Well, we are pretty much done. 
 Now you just need to send the list of candidate genes and the nice graphics to your wet lab folks. 
 Hopefully they find something interesting at the lab bench. 
