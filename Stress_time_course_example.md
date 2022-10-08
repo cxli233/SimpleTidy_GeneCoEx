@@ -1528,7 +1528,8 @@ Looking at the quartiles and extremes of z score, we can probably clip the z sco
 ```R
 modules_mean_z <- modules_mean_z %>% 
   mutate(mean.z.clipped = case_when(
-    abs(mean.z) > 1.5 ~ 1.5,
+    z > 1.5 ~ 1.5, 
+    z < -1.5 ~ 1.5 
     T ~ mean.z
   ))
 ```
@@ -1583,22 +1584,22 @@ While module 10 is up-regulated at heat treatment, it has a more robust diurnal 
 And also detected many heat repressed modules. 
 
 We can plot some of them. 
-I think modules 97, 10, and 7 look interesting. 
+I think modules 3, 7, and 9 look interesting. 
 
 ```R
 Exp_table_long_averaged_z_high_var_or_high_F_modules %>% 
   mutate(treatment = factor(treatment, levels = c("control", "heat"))) %>% 
   filter(module == "3" |
-           module == "10" |
-           module == "44") %>% 
+           module == "7" |
+           module == "9") %>% 
   ggplot(aes(x = time_point, y = z.score)) +
   facet_grid(treatment ~ module) +
   geom_line(aes(group = LocusName), alpha = 0.3, color = "grey70") +
   geom_line(
     data = modules_mean_z %>% 
       filter(module == "3" |
-               module == "10"|
-               module == "44") %>% 
+               module == "7"|
+               module == "9") %>% 
   mutate(treatment = factor(treatment, levels = c("control", "heat"))),
     aes(y = mean.z, group = module), 
    size = 1.1, alpha = 0.8
