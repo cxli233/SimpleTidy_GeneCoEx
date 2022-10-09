@@ -125,9 +125,9 @@ dim(Exp_table)
 ```
 ## [1] 27541    31
 ```
-Looks like we have 27540 genes and 30 library. 
+Looks like we have 27540 genes and 30 libraries. 
 According to the Methods section of the paper, the table was generated using Cufflinks. 
-The values in the table is FPKM. I prefer TPM values, but this will work jsut fine. 
+The values in the table are FPKM. I prefer TPM values, but this will work jsut fine. 
 According to author's notes, library `C_3hr_B2` is flagged with low correlation coefficient between other reps. 
 So let's throw it out upfront.
 
@@ -203,7 +203,7 @@ Baits
 ## A tibble:4 × 2
 ```
 I pulled out 4 trehalose-6 phosphate synthase (TPS) genes from the genome annotation. 
-It will be interesting to see their expression pattern in this heat stress time course. 
+It will be interesting to see their expression patterns in this heat stress time course. 
 
 # Experimental Design
 Before I start doing any analysis, I would first try to wrap my head around the experimental design. 
@@ -256,8 +256,8 @@ One of the combination only has 2 reps, because we threw out 1. The rest all hav
 10 * 3 - 1 = 29, matching the number of rows in the metadata table. This is very good. 
 
 ## Summary table 
-This is a two factor experimental design: developmental stage * tissue. 
-The major sources of variations are developmental stages, tissues, and replicates. 
+This is a two factor experimental design: time point * treatment. 
+The major sources of variations are time point, treatment, and replicates. 
 I usually make a summary table to guide my downstream analyses. 
 
 | source | type     | levels   | 
