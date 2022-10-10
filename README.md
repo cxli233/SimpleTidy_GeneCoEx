@@ -1,6 +1,9 @@
 # Simple Tidy GeneCoEx 
 A simple gene co-expression analyses workflow powered by tidyverse and graph analyses
 
+[![DOI](https://zenodo.org/badge/542221034.svg)](https://zenodo.org/badge/latestdoi/542221034)
+
+
 ![module heatmap](https://github.com/cxli233/SimpleTidy_GeneCoEx/blob/main/Results/module_heatmap.svg)
 
 # Table of Contents
