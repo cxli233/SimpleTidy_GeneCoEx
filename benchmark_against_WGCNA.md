@@ -11,6 +11,14 @@ This work sheet mainly presents the results, and not the underlying scripts.
 The scripts that generated the results can be found in the `/Scripts` folder.
 You will need the `rmarkdown` package to open them. 
 
+# Table of contents
+
+1. [Dependencies](https://github.com/cxli233/SimpleTidy_GeneCoEx/blob/main/benchmark_against_WGCNA.md#dependencies)
+2. [WGCNA - tomato fruit development series](https://github.com/cxli233/SimpleTidy_GeneCoEx/blob/main/benchmark_against_WGCNA.md#wgcna---tomato-fruit-development-series)
+3. [WGCNA - tepary leaf heat stress time course](https://github.com/cxli233/SimpleTidy_GeneCoEx/blob/main/benchmark_against_WGCNA.md#wgcna---tepary-leaf-heat-stress-time-course)
+4. [Tightness of module](https://github.com/cxli233/SimpleTidy_GeneCoEx/blob/main/benchmark_against_WGCNA.md#tightness-of-module)
+5. [Discussion and Conclusion](https://github.com/cxli233/SimpleTidy_GeneCoEx/blob/main/benchmark_against_WGCNA.md#discussion-and-conclusion)
+
 # Dependencies 
 ```r
 library(tidyverse)
@@ -32,7 +40,7 @@ The rest of the packages are used for data visualization, and not required for W
 
 # WGCNA - tomato fruit development series 
 For WGCNA, we need a normalized gene expression matrix. 
-WGCNA requires a matrix with libraries as rows and genes as names. 
+WGCNA requires a matrix with libraries as rows and genes as columns. 
 I provided a matrix where the biological replicates were already averaged up to the level of treatments. 
 In this case, the treatments are tissue by developmental stage combinations. 
 I also only used samples collected by hand, not by laser capture. 
@@ -70,7 +78,7 @@ because genes involved in the same biological process are likely to be co-expres
 
 I picked two bait genes: 
 
-1. PG: Solly.M82.10G020850.1, involved in making the fruit softer
+1. PG: Solly.M82.10G020850.1, involved in making the fruit softer.
 2. PSY1: Solly.M82.03G005440.1, involved in making the fruit red.
 
 They are both in module 3 or "plum1" module, which is good to see. 
@@ -101,14 +109,14 @@ To do so, I correlated every modules detected by WGCNA to every module detected 
 ![Tomato_correspondence](https://github.com/cxli233/SimpleTidy_GeneCoEx/blob/main/Results/Tomato_correspondance.svg)
 
 Here each row is a WGCNA module. 
-Color strip on the left annotates the name (colors). 
+Color strip on the left annotates the names (colors). 
 Each column is a module detected by Li's method. 
 Color strips on the right and bottom annotate the peak developmental stage of these modules. 
 The colors indicate correlation coefficient r. 
 A high r value indicates the modules have very similar expression pattern, and thus a corresponding module between two methods. 
 
 As you can see, there is a clear red signal across the diagonal of this heatmap. 
-Not surprisingly, if two modules are highly correlated, they are very likely to peak at the same developmental stage, 
+Unsurprisingly, if two modules are highly correlated, they are very likely to peak at the same developmental stage, 
 because you might remember in this dataset, the main driver of variation is developmental stages, not tissues. 
 See the [PCA](https://github.com/cxli233/SimpleTidy_GeneCoEx#pca) section of main README for more info.  
 
@@ -139,7 +147,7 @@ In contrast, in Li's method, there is a gene selection section before going into
 The methods I used is high variance gene and (or) high F statistics genes. 
 For more info, refer to [gene selection section](https://github.com/cxli233/SimpleTidy_GeneCoEx/blob/main/Stress_time_course_example.md#gene-selection).
 
-In this benchmarking experiment, I will be only using genes that are either high variance or high F in WGCNA. 
+In this benchmarking experiment, I will be only using genes that are either high variance or high F for WGCNA. 
 
 ## Power selection
 Agian, I follow the [tutorial](https://bioinformaticsworkbook.org/tutorials/wgcna.html#gsc.tab=0). 
@@ -147,7 +155,7 @@ Agian, I follow the [tutorial](https://bioinformaticsworkbook.org/tutorials/wgcn
 ![Tepary diagnostic stats](https://github.com/cxli233/SimpleTidy_GeneCoEx/blob/main/Results/WGCNA_tepary_power.svg)
 
 The power curve on the left look a bit funny. It might be due to we are constraining the genes we put into WGCNA. 
-But regardless the reason, both curves stablized at a power of 16. So, I picked 16 and roll with it. 
+But regardless of the reason, both curves stablized at a power of 16. So, I picked 16 and roll with it. 
 
 ## Module detection 
 After gene co-expression modules are detected, I looked at their correspondence with the treatments.  
@@ -264,7 +272,7 @@ However, even after controlling for module size, Li's method returns lower loss 
 (estimated marginal means: 1.99 95% CI [1.64 - 2.34] vs 2.94 95% CI [1.54 - 3.34], P = 0.0008, ANCOVA). 
 
 # Discussion and Conclusion
-The potential reason underlying differences in module tightness might be due to module detection method. 
+The potential reason underlying differences in module tightness might be due to the module detection methods. 
 WGCNA uses hierarchical clustering followed by tree cutting to detect modules ([ref](https://bmcbioinformatics.biomedcentral.com/articles/10.1186/1471-2105-9-559)). 
 
 > The default method is hierarchical clustering using the standard R function hclust; branches of the hierarchical clustering dendrogram correspond to modules and can be identified using one of a number of available branch cutting methods, for example the constant-height cut or two Dynamic Branch Cut methods.
