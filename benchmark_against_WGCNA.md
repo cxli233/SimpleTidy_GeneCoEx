@@ -84,7 +84,7 @@ I picked two bait genes:
 They are both in module 3 or "plum1" module, which is good to see. 
 
 We can also graph the z score of genes across a couple modules. 
-![WGCNA_tomato_module_line_graphs](https://github.com/cxli233/SimpleTidy_GeneCoEx/blob/main/Results/WGCNA_tomato_module_line_plots.svg) 
+![WGCNA_tomato_module_line_graphs](https://github.com/cxli233/SimpleTidy_GeneCoEx/blob/main/Results/WGCNA_tomato_module_line_plots.png) 
 
 In this figure, each large row is a module. 
 I picked two modules, module ME2 and module ME3, which are early and late development modules, respectively. 
@@ -98,7 +98,7 @@ What stood out to me is that while the general trend is apparent, the the grey l
 They remind me of sharp teeth of sharks. 
 
 For a comparison, we can look at the module line graphs detected by Li's Simple Tidy GeneCoEx method:
-![tomato line graphs](https://github.com/cxli233/SimpleTidy_GeneCoEx/blob/main/Results/module_line_plots.svg).
+![tomato line graphs](https://github.com/cxli233/SimpleTidy_GeneCoEx/blob/main/Results/module_line_plots.png).
 
 We will come back to quantifying module tightness between the two methods later. 
 
@@ -189,7 +189,7 @@ We can graph a few modules to check.
 We will do Modules 7, 8, and 11 because that where our baits are. 
 The corresponding 'colors' are light green, light yellow, and yellow. 
 
-![Tepary_WGCNA_line_graphs](https://github.com/cxli233/SimpleTidy_GeneCoEx/blob/main/Results/WGCNA_tepary_module_line_plots.svg)
+![Tepary_WGCNA_line_graphs](https://github.com/cxli233/SimpleTidy_GeneCoEx/blob/main/Results/WGCNA_tepary_module_line_plots.png)
 
 In this figure, each large row is the control or heat stress treatment. 
 Each big column is a module. The x-axis is time points. 
