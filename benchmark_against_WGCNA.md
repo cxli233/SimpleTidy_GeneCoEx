@@ -231,7 +231,7 @@ To adabt the squared loss function to this context, I modified the loss function
 For gene $i$ and treatment $j$ in module $m$,
 the mean sum of squares of such module $m$, i.e., $msq_m$ is computed as:
      
-$$msq_m = { \sum \left( z_{ij} - mean \left( z_i \right)_j \right)^2 \over n_m }$$ 
+$$msq_m = { \sum \left( z_{ijm} - mean \left( z_i \right)_{jm} \right)^2 \over n_m }$$ 
 
 where $z_{ij}$ is the z score of each gene at each treatment, 
 $n_m$ is the total number of genes in each module, 
@@ -240,4 +240,45 @@ and thus mean sum of squares.
 
 ## Tomato dataset 
 
+![Tomato_Comparison](https://github.com/cxli233/SimpleTidy_GeneCoEx/blob/main/Results/Tomato_benchmarking_results.png)
+
+Each dot on these graphs is a module. 
+Modules are color coded by which method they are deteced by (WGCNA vs Simple Tidy). 
+On the left, we can see that Li's method detected modules that are tighter, as quantified by a lower loss function value. 
+(Median<sub>Li</sub> = 24.7; Median<sub>WGCNA</sub> = 44.7; P = 3.6e-8, Wilcoxon Rank Sum Test). 
+There is only a weak correlation between module size and loss function value. 
+Even small modules detected by WGCNA have higher loss function values, 
+indicating the higher loss is not due to insufficient resolution or insufficient module separation. 
+
+## Tepary dataset 
+
+![Tepary Comparison](https://github.com/cxli233/SimpleTidy_GeneCoEx/blob/main/Results/Tepary_benchmarking_results.png)
+
+Again, each dot on these graphs is a module. 
+Modules are color coded by which method they are deteced by (WGCNA vs Simple Tidy). 
+Again we see that Li's method detected modules that are tighter, as quantified by a lower loss function value. 
+(Median<sub>Li</sub> = 1.71; Median<sub>WGCNA</sub> = 2.85; P = 3.1e-5, Wilcoxon Rank Sum Test).
+In this case, there is a mild correlation between loss function value and module size, 
+indicating both methods could benefit from higher resoltion or more module separation. 
+However, even after controlling for module size, Li's method returns lower loss than WGCNA 
+(estimated marginal means: 1.99 95% CI [1.64 - 2.34] vs 2.94 95% CI [1.54 - 3.34], P = 0.0008, ANCOVA). 
+
+# Discussion and Conclusion
+The potential reason underlying differences in module tightness might be due to module detection method. 
+WGCNA uses hierarchical clustering followed by tree cutting to detect modules ([ref](https://bmcbioinformatics.biomedcentral.com/articles/10.1186/1471-2105-9-559)). 
+
+> The default method is hierarchical clustering using the standard R function hclust; branches of the hierarchical clustering dendrogram correspond to modules and can be identified using one of a number of available branch cutting methods, for example the constant-height cut or two Dynamic Branch Cut methods.
+
+In contrast, Simple Tidy GeneCoEx uses the Leiden algorithm to detect modules, which returns modules that are highly interconnected ([ref](https://www.nature.com/articles/s41598-019-41695-z)). 
+
+> We prove that the Leiden algorithm yields communities that are guaranteed to be connected.
+
+As a result, highly interconnected modules may imply tighter modules. 
+
+In conclusion:
+
+1. WGCNA appears to return more modules and higher resolution without pre-filtering genes. 
+2. Both methods detect gene co-expression modules with similar expression patterns. 
+3. Large blocks of genes are shared between modules detected by the two methods.
+4. The Simple Tidy GeneCoEx method detect tighter modules, as quantified by a mean sum of squares loss function, regardless whether the transcriptome is pre-filtered for high variance or high F genes. 
 
