@@ -390,6 +390,17 @@ Then we filter for `dissection_method == "Hand`.
 The elegance of a tidyverse based workflow is that you do not have to do loops! You let `group_by()` do the heavy lifting. 
 This could take a moment. This step is doing a lot of mean calculations. 
 
+```{r}
+Exp_table_long_averaged_wide <- Exp_table_long_averaged %>% 
+  mutate(tag = paste(tissue, dev_stage, sep = ";")) %>% 
+  select(gene_ID, tag, mean.logTPM) %>% 
+  pivot_wider(names_from = tag, values_from = mean.logTPM)
+
+head(Exp_table_long_averaged_wide)
+write_excel_csv(Exp_table_long_averaged_wide, file = "../Results/Tomato_Exp_table_averaged.csv")
+```
+
+
 ## Z score
 Once we averaged up the reps, we will standardize the expression pattern using z score. 
 A z score is the difference from mean over the standard deviation.
@@ -1061,6 +1072,9 @@ Exp_table_long_averaged_z_high_var_modules <- Exp_table_long_averaged_z_high_var
   inner_join(my_network_modules, by = "gene_ID")
 
 head(Exp_table_long_averaged_z_high_var_modules)
+
+write_excel_csv(Exp_table_long_averaged_z_high_var_modules, 
+                "../Results/Exp_table_long_averaged_z_high_var_modules.csv")
 ```
 
 Now we can produce summary statistics for each cluster and look at their expression pattern using mean. 
@@ -1435,6 +1449,9 @@ When the rows and columns are re-orded, you can trace the signal down the diagon
 I also added two color strips at the bottom to annotate the tissues and stages. 
 The fruit ripening genes, which are captured by module 8, don't really kick in until Br stage or later. 
 
+ 
+
+
 ## Gene co-expression graphs 
 A common data visualization for gene co-expression analyses is network graphs. 
 We will be using `ggraph`, a `ggplot` extension of `igraph`. 
@@ -1631,6 +1648,10 @@ Bait_neighors <- M82_funct_anno %>%
 
 head(Bait_neighors)
 write_excel_csv(Bait_neighors, "../Results/PG_PSY1_neighbors.csv", col_names = T)
+
+
+write_excel_csv(modules_mean_z_reorded, "../Results/modules_mean_z_reordered.csv")
+write_excel_csv(my_network_modules, "../Results/my_network_modules.csv")
 ```
 
 

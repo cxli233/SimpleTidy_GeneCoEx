@@ -533,7 +533,8 @@ ANOVA_results <- purrr::map_dfr(
     .x = Expressed_genes$LocusName,
     .f = compute_F,
     data =  Exp_table_long %>% 
-            full_join(PCA_coord, by = "library")
+      full_join(PCA_coord, by = "library") %>% 
+      filter(LocusName %in% Expressed_genes$LocusName)
   ) %>% 
   cbind(LocusName = Expressed_genes$LocusName) %>% 
   as.data.frame() %>% 
@@ -626,11 +627,11 @@ wrap_plots(
   F_var_scatter, var_dist,
   nrow = 2, ncol = 2, 
   heights = c(0.35, 1),
-  widths = c(1, 0.35)
+  widths = c(1, 0.4)
 )
 
-ggsave("../Results/Tepary_var_F_scatter.svg", width = 5.5, height = 5.5)
-ggsave("../Results/Tepary_var_F_scatter.png", width = 5.5, height = 5.5)
+ggsave("../Results/Tepary_var_F_scatter.svg", width = 6, height = 5.5)
+ggsave("../Results/Tepary_var_F_scatter.png", width = 6, height = 5.5)
 ```
 This scatter plot is a bit unexpected, but interesting. 
 I graph F stat on x axis and sd (rather than var) on y axis to make dots spread out better. 
@@ -1412,21 +1413,21 @@ For example, module 4 is not diurnal in the control treatment but up-regulated d
 While module 10 is up-regulated at heat treatment, it has a more robust diurnal pattern. 
 
 We can plot some of them. 
-I think modules 97, 10, and 7 look interesting. 
+I think modules 9, 3, and 7 look interesting. 
 ```{r}
 Exp_table_long_averaged_z_high_var_or_high_F_modules %>% 
   mutate(treatment = factor(treatment, levels = c("control", "heat"))) %>% 
   filter(module == "3" |
-           module == "10" |
-           module == "44") %>% 
+           module == "9" |
+           module == "7") %>% 
   ggplot(aes(x = time_point, y = z.score)) +
   facet_grid(treatment ~ module) +
   geom_line(aes(group = LocusName), alpha = 0.3, color = "grey70") +
   geom_line(
     data = modules_mean_z %>% 
       filter(module == "3" |
-               module == "10"|
-               module == "44") %>% 
+               module == "9"|
+               module == "7") %>% 
   mutate(treatment = factor(treatment, levels = c("control", "heat"))),
     aes(y = mean.z, group = module), 
    size = 1.1, alpha = 0.8
@@ -1621,6 +1622,24 @@ Bait_neighors <- funct_anno %>%
 head(Bait_neighors)
 write_excel_csv(Bait_neighors, "../Results/Tepary_TPS_neighbors.csv", col_names = T)
 ```
+
+```{r}
+write_excel_csv(my_network_modules, "../Results/Tepary_network_modules.csv") 
+write_excel_csv(modules_mean_z_reordered, "../Results/Tepary_modules_means_z_reordered.csv")
+write_excel_csv(Exp_table_long_averaged_z_high_var_or_high_F_modules, 
+                "../Results/Tepary_Exp_table_long_averaage_z_high_var_or_high_F_modules.csv")
+
+write_excel_csv(
+  Exp_table_long_averaged_z_high_var_or_high_F_modules %>% 
+  mutate(tag = paste(time_point, treatment, sep = ";")) %>% 
+  select(tag, mean.logFPKM, LocusName) %>% 
+  pivot_wider(names_from = tag, values_from = mean.logFPKM),
+  "../Results/Tepary_expression_matrix_for_WGCNA.csv"
+)
+
+
+```
+
 
 What would be really interesting to do is you can take the list of neighbors and check if any overlaps QTL for heat tolerance.
 

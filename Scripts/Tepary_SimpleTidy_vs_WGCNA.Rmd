@@ -1,0 +1,779 @@
+---
+title: "Tepary_SimpleTidy_vs_WGCNA"
+author: "Chenxin Li"
+date: '2022-10-16'
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Introduction
+
+This work sheet aims to compare Li's SimpleTidy GeneCoEx workflow with the WGCNA package. 
+[WGCNA](https://bmcbioinformatics.biomedcentral.com/articles/10.1186/1471-2105-9-559) is regarded as the "method of choice" by some for gene co-expression analyses. 
+We will be benchmarking the two workflows using the tepary bean leaf heat stress time course data. 
+Ref: [Moghaddam et al., 2021](https://www.nature.com/articles/s41467-021-22858-x).
+
+# Dependencies
+```{r}
+library(tidyverse)
+library(WGCNA)
+
+library(ggalluvial)
+library(ggbeeswarm)
+
+library(patchwork)
+library(RColorBrewer)
+library(viridis)
+
+set.seed(666)
+```
+
+# Load data 
+I already performed gene co-expression and clustering analyses using my "Simply Tidy Gene CoEx" workflow. 
+I will just import the results from my analyses first. 
+
+```{r}
+modules_mean_z_reorded <- read_csv("../Results/Tepary_modules_means_z_reordered.csv", col_types = cols())
+
+my_network_modules <- read_csv("../Results/Tepary_network_modules.csv", col_types = cols())
+
+Exp_table_long_averaged_z_high_var_or_high_F_modules <- read_csv("../Results/Tepary_Exp_table_long_averaage_z_high_var_or_high_F_modules.csv", 
+                                                                 col_types = cols())
+```
+
+I am reading in two tables.
+
+1. `modules_mean_z_reordered` contains the mean z score of all genes in each module across developmental stages and tissues. 
+2. `my_network_modules` contains the module membership for each gene in the analyses. 
+
+For WGCNA, I need a normalized gene expression matrix. Let's load that too. 
+```{r}
+Exp_table <- read_csv("../Results/Tepary_expression_matrix_for_WGCNA.csv", col_types = cols())
+head(Exp_table)
+```
+
+For the rest of this workflow, I will be following this [tutorial for WCGNA](https://bioinformaticsworkbook.org/tutorials/wgcna.html#gsc.tab=0). 
+I am using normalized, log transformed data that were already averaged up to the reps as input. 
+
+# Diagnostic statistics
+WGCNA has its edge selection method. It picks a threshold value, below which edges are removed. 
+The math behind it is beyond me. But let's just follow the instructions.
+
+```{r}
+allowWGCNAThreads(4)
+```
+
+```{r}
+Exp_table <- as.data.frame(Exp_table)
+row.names(Exp_table) <- Exp_table$LocusName
+input_mat <- t(Exp_table[,-1])
+input_mat[1:6, 1:10]
+```
+WGCNA requires a matrix with libraries as rows and genes as names. So I made that for it. 
+
+```{r}
+powers <- c(c(1:10), seq(from = 12, to = 20, by = 2))
+
+soft <- pickSoftThreshold(
+  input_mat,             
+  powerVector = powers,
+  verbose = 5
+  )
+```
+```{r}
+WGCNA_power1 <- soft$fitIndices %>% 
+  ggplot(aes(x = Power, y = SFT.R.sq )) +
+  geom_line(color = "grey20", size = 1.1, alpha = 0.8) +
+  geom_point(size = 3, alpha = 0.8, color = "dodgerblue") +
+  labs(x = "Soft Threshold (power)",
+       y = "Scale Free Topology\nModel Fit signed R^2") +
+  theme_classic() +
+  theme(
+    text = element_text(size = 14),
+    axis.text = element_text(color = "black")
+  )
+
+
+WGCNA_power2 <- soft$fitIndices %>% 
+  ggplot(aes(x = Power, y = mean.k. )) +
+  geom_line(color = "grey20", size = 1.1, alpha = 0.8) +
+  geom_point(size = 3, alpha = 0.8, color = "violetred2") +
+  labs(x = "Soft Threshold (power)",
+       y = "Mean Connectivity") +
+  theme_classic() +
+  theme(
+    text = element_text(size = 14),
+    axis.text = element_text(color = "black")
+  )
+
+wrap_plots(WGCNA_power1, WGCNA_power2,
+           ncol = 2)
+
+ggsave("../Results/WGCNA_tepary_power.svg", width = 6, height = 3, bg = "white")
+ggsave("../Results/WGCNA_tepary_power.png", width = 6, height = 3, bg = "white")
+```
+The left plot makes a rather interesting pattern. I haven't seen anything like this before.
+This might be due to I pre-selected high variance and high F statistics genes (see tepray use case for more details). 
+Given the shapes of both curves, let's pick a power of 16.
+
+# Detect modules 
+```{r}
+picked_power <- 16
+temp_cor <- cor
+cor <- WGCNA::cor
+
+tepary_WGCNA_network <- blockwiseModules(
+  input_mat,
+  
+  power = picked_power, 
+  networkType = "signed",
+  
+  deepSplit = 2,
+  pamRespectsDendro = F,
+  minModuleSize = 30,
+  maxBlockSize = 4000,
+  
+  reassignThreshold = 0,
+  mergeCutHeight = 0.25,
+  
+  saveTOMs = F,
+  
+  numericLabels = T,
+  verbose = 3
+)  
+
+cor <- temp_cor
+```
+
+## Cluster dendrogram
+```{r}
+mergedColors <- labels2colors(tepary_WGCNA_network$colors)
+
+plotDendroAndColors(
+  tepary_WGCNA_network$dendrograms[[1]],
+  mergedColors[tepary_WGCNA_network$blockGenes[[1]]],
+  "Module colors",
+  dendroLabels = FALSE,
+  hang = 0.03,
+  addGuide = TRUE,
+  guideHang = 0.05 )
+```
+
+# Module membership
+```{r}
+module_df <- data.frame(
+  gene.id = names(tepary_WGCNA_network$colors),
+  module = tepary_WGCNA_network$colors
+)
+
+head(module_df)
+module_df %>% 
+  group_by(module) %>% 
+  count()
+```
+We get 20 modules. 
+
+# Module-treatment correspondance 
+```{r}
+Module_eigen <- moduleEigengenes(input_mat, tepary_WGCNA_network$colors)$eigengenes
+head(Module_eigen)
+```
+
+## Heat map representation 
+### Reorder rows and columns 
+```{r}
+Module_eigen_long <- Module_eigen %>% 
+  mutate(tag = row.names(.)) %>% 
+  pivot_longer(cols = !tag, names_to = "Module", values_to = "Eigen") %>% 
+  separate(tag, c("time_point", "treatment"), sep = ";") %>% 
+  mutate(time_point = as.numeric(time_point)) 
+ 
+head(Module_eigen_long)
+```
+
+#### Module peak 
+```{r}
+Module_eigen_long_peak <- Module_eigen_long %>% 
+  group_by(Module) %>% 
+  slice_max(order_by = Eigen, n = 1) %>% 
+  ungroup() %>% 
+  mutate(Module = reorder(Module, -time_point)) %>% 
+  mutate(peak_time = time_point) %>% 
+  select(Module, peak_time)
+   
+
+head(Module_eigen_long_peak)
+```
+
+```{r}
+Module_eigen_long_reordered <- Module_eigen_long %>% 
+  full_join(Module_eigen_long_peak, by = "Module") %>% 
+  mutate(Module = reorder(Module, -peak_time)) 
+```
+
+### Outliers
+```{r}
+summary(Module_eigen_long_reordered$Eigen)
+```
+Very symmetrical. 
+
+```{r}
+tepary_WGCNA_heatmap <- Module_eigen_long_reordered %>% 
+  ggplot(aes(x = as.factor(time_point), y = Module)) +
+  facet_grid(. ~ treatment, scales = "free", space = "free") +
+  geom_tile(aes(fill = Eigen)) +
+  scale_fill_gradientn(colors = rev(brewer.pal(11, "RdBu")),
+                       breaks = c(-0.5, 0.5)) +
+  labs(x = "time point",
+       y = "Module",
+       fill = "Eigen Gene Exp.") +
+  theme_classic() +
+  theme(
+    text = element_text(size = 14),
+    axis.text = element_text(color = "black"),
+    #axis.text.y = element_blank(),
+    strip.background = element_blank(),
+    legend.position = "top",
+    panel.spacing = unit(0.5, "lines") 
+  )
+
+tepary_WGCNA_heatmap
+```
+### Make color strip for heatmap 
+```{r}
+module_df_colors <- Module_eigen_long_peak %>% 
+  mutate(colors = labels2colors(Module))
+
+module_df_colors
+
+heat_map_color_strip_y <- module_df_colors %>% 
+  ggplot(aes(x = "", y = Module)) +
+  geom_tile(aes(fill = colors), alpha = 0.8) +
+  scale_fill_identity() +
+  theme_void()
+```
+```{r}
+wrap_plots(tepary_WGCNA_heatmap, heat_map_color_strip_y,
+           nrow = 1, ncol = 2, 
+           heights = c(1, 0.05),
+           widths = c(1, 0.05)) 
+  
+
+ggsave("../Results/WGCNA_tepary_heatmap.svg", height = 6, width = 5, bg = "white")
+ggsave("../Results/WGCNA_tepary_heatmap.png", height = 6, width = 5, bg = "white")
+```
+
+# Module QC
+## Bait genes
+We have some bait genes, all involved in trehalose. 
+
+1. Phacu.CVR.003G017200	TPS6
+2. Phacu.CVR.003G183300	TPS11
+3. Phacu.CVR.009G053300	TPSJ
+4. Phacu.CVR.002G288900	TPSJ 
+
+Let's check which module(s) they are assigned to.  
+
+```{r}
+module_df %>% 
+  filter(gene.id == "Phacu.CVR.003G017200" | 
+           gene.id == "Phacu.CVR.003G183300" |
+           gene.id == "Phacu.CVR.009G053300" |
+           gene.id == "Phacu.CVR.002G288900")
+
+module_df_colors %>% 
+  filter(Module == "ME7" |
+           Module == "ME8" |
+           Module == "ME11")
+```
+They are placed into different modules. 
+But at least the patterns of those modules seem similar. 
+
+## Line graphs
+```{r}
+Exp_table_long_averaged_z_high_var_or_high_F_modules
+```
+
+```{r}
+Exp_table_long_averaged_modules <- Exp_table_long_averaged_z_high_var_or_high_F_modules %>% 
+  select(-module) %>%  # removed module info from my method
+  inner_join(module_df, by = c("LocusName" = "gene.id")) %>% 
+  mutate(Module = paste0("ME", module)) %>% 
+  inner_join(module_df_colors %>% 
+               select(Module, colors), by = "Module") 
+
+head(Exp_table_long_averaged_modules)
+```
+
+Now I can graph a couple modules to check. 
+We will do Modules 7, 8, and 11 because that where our baits are. 
+The corresponding 'colors' are light green, light yellow, and yellow. 
+
+Before we make the line graph, let's also make an average of z scores for all the modules. 
+```{r}
+tepary_WGCNA_modules_mean_z <- Exp_table_long_averaged_modules %>% 
+  group_by(Module, time_point, treatment, colors) %>% 
+  summarise(mean.z = mean(z.score)) %>% 
+  ungroup() %>% 
+  filter(is.na(mean.z)==F)  
+
+head(tepary_WGCNA_modules_mean_z)
+```
+
+* ME11		yellow		
+* ME7	lightgreen		
+* ME8		lightyellow
+
+```{r}
+module_line_plot <- Exp_table_long_averaged_modules %>% 
+  filter(colors == "yellow" |
+           colors == "lightgreen" |
+          colors == "lightyellow") %>% 
+  ggplot(aes(x = time_point, y = z.score)) +
+  facet_grid(treatment ~ colors) +
+  geom_line(aes(group = LocusName), alpha = 0.3, color = "grey70") +
+  geom_line(
+    data = tepary_WGCNA_modules_mean_z %>% 
+      filter(
+        colors == "yellow" |
+           colors == "lightgreen" |
+          colors == "lightyellow"
+      ), 
+    aes(y = mean.z, group = colors),
+    size = 1.1, alpha = 0.9
+  ) +
+  labs(x = "time point",
+       y = "z score") +
+  theme_classic() +
+  theme(
+    text = element_text(size = 14),
+    axis.text = element_text(color = "black"),
+    panel.spacing = unit(1, "line")
+  )
+
+module_line_plot
+
+ggsave("../Results/WGCNA_tepary_module_line_plots.svg", height = 4, width = 8.2, bg = "white")
+ggsave("../Results/WGCNA_tepary_module_line_plots.png", height = 4, width = 8.2, bg = "white")
+```
+# Heatmap for module z score
+```{r}
+head(tepary_WGCNA_modules_mean_z)
+```
+
+```{r}
+tepary_WGCNA_modules_mean_z_reordered <- tepary_WGCNA_modules_mean_z %>% 
+  inner_join(Module_eigen_long_peak, by = "Module") 
+
+head(tepary_WGCNA_modules_mean_z_reordered)
+```
+```{r}
+tepary_WGCNA_modules_mean_z_reordered$mean.z %>% summary()
+quantile(tepary_WGCNA_modules_mean_z_reordered$mean.z, c(0.025, 0.975))
+```
+```{r}
+tepary_WGCNA_heatmap.z <- tepary_WGCNA_modules_mean_z_reordered %>% 
+  mutate(Module = reorder(Module, -peak_time)) %>% 
+  mutate(colors = reorder(colors, -peak_time)) %>% 
+  mutate(mean.z.clipped = case_when(
+    mean.z > 1.5 ~ 1.5,
+    mean.z < -1.5 ~ -1.5,
+    T ~ mean.z
+  )) %>% 
+  ggplot(aes(x = as.factor(time_point), y = Module)) +
+  facet_grid(. ~ treatment, scales = "free", space = "free") +
+  geom_tile(aes(fill = mean.z.clipped), color = "grey80") +
+  scale_fill_gradientn(colors = rev(brewer.pal(11, "RdBu")), limits = c(-1.5, 1.5),
+                       breaks = c(-1.5, 0, 1.5), labels = c("< -1.5", "0", "> 1.5")) +
+  labs(x = "time point",
+       y = "Module",
+       fill = "z score") +
+  theme_classic() +
+  theme(
+    text = element_text(size = 14),
+    axis.text = element_text(color = "black"),
+    legend.position = "top",
+    panel.spacing = unit(0.5, "lines"),
+    strip.background = element_blank()
+  )
+
+wrap_plots(tepary_WGCNA_heatmap.z, heat_map_color_strip_y,
+           nrow = 1, ncol = 2, 
+           widths = c(1, 0.05))  
+
+ggsave("../Results/WGCNA_tepary_heatmap.z.svg", height = 6, width = 5, bg = "white")
+ggsave("../Results/WGCNA_tepary_heatmap.z.png", height = 6, width = 5, bg = "white")
+```
+
+# Cross-workflow comparison
+## Correspondance
+
+### Wide of WGCNA
+```{r}
+tepary_WGCNA_modules_mean_z_reordered_wide <- tepary_WGCNA_modules_mean_z_reordered %>% 
+  select(treatment, time_point, colors, mean.z) %>% 
+  mutate(tag = paste(treatment, time_point, sep = ";")) %>% 
+  select(-treatment, -time_point) %>% 
+  pivot_wider(names_from = colors, values_from = mean.z) %>% 
+  as.data.frame()
+
+row.names(tepary_WGCNA_modules_mean_z_reordered_wide) <- tepary_WGCNA_modules_mean_z_reordered_wide$tag
+head(tepary_WGCNA_modules_mean_z_reordered_wide)
+```
+
+### Wide of Simple Tidy GeneCoEx
+```{r}
+modules_mean_z_reorded_wide <- modules_mean_z_reorded %>% 
+  select(treatment, time_point, module, mean.z) %>% 
+  mutate(tag = paste(treatment, time_point, sep = ";")) %>% 
+  select(-treatment, -time_point) %>% 
+  pivot_wider(names_from = module, values_from = mean.z) %>% 
+  as.data.frame()
+
+row.names(modules_mean_z_reorded_wide) <- modules_mean_z_reorded_wide$tag
+head(modules_mean_z_reorded_wide)
+```
+
+```{r}
+modules_mean_z_reorded_wide$tag == tepary_WGCNA_modules_mean_z_reordered_wide$tag
+```
+
+### Find corresponding modules
+```{r}
+Corresonding_modules <- apply(tepary_WGCNA_modules_mean_z_reordered_wide[,-1], 
+                              FUN = stats::cor, modules_mean_z_reorded_wide[,-1], 
+                              MARGIN = 2)
+
+dim(Corresonding_modules)
+head(Corresonding_modules)
+```
+ 
+
+
+```{r}
+Corresonding_modules_long <- Corresonding_modules %>% 
+  as.data.frame() %>% 
+  cbind(SimpleTidy_GeneCoEx = colnames(modules_mean_z_reorded_wide)[-1]) %>% 
+  pivot_longer(cols = ! SimpleTidy_GeneCoEx, names_to = "WGCNA", values_to = "r") %>% 
+  inner_join(module_peak_exp %>% 
+               mutate(module = as.character(module)) %>% 
+               select(time_point, treatment, module, time_point), 
+             by = c("SimpleTidy_GeneCoEx" = "module")) %>% 
+  rename(peak_simple = time_point) %>% 
+  inner_join(
+    tepary_WGCNA_modules_mean_z_reordered %>% 
+      group_by(colors, peak_time) %>% 
+      count() %>% 
+      select(-n), by = c("WGCNA" = "colors")
+  ) %>% 
+  rename(peak_WGCNA = peak_time) %>% 
+  mutate(SimpleTidy_GeneCoEx = reorder(SimpleTidy_GeneCoEx, -peak_simple)) %>% 
+  mutate(WGCNA = reorder(WGCNA,  peak_WGCNA))
+
+
+head(Corresonding_modules_long)
+```
+
+```{r}
+Corresonding_modules_heatmap <- Corresonding_modules_long %>% 
+  ggplot(aes(y = WGCNA , x = SimpleTidy_GeneCoEx)) +
+  geom_tile(aes(fill = r)) +
+  scale_fill_gradientn(colours = rev(brewer.pal(11, "RdBu")),
+                       limits = c(-1, 1),
+                       breaks = c(-0.9, 0, 0.9))+
+  labs(x = "Simple Tidy GeneCoEx Modules",
+       y = "WGCNA Modules") +
+  theme_minimal() +
+  theme(
+    legend.position = "top",
+    text = element_text(size = 14),
+    axis.text = element_text(color = "black"),
+    axis.text.y = element_blank(),
+    axis.text.x = element_text(angle = 45, hjust = 1),
+    legend.key.width = unit(1.2, "lines"),
+    panel.grid = element_blank()
+  )
+
+
+Corresonding_modules_heatmap
+```
+### Make color strip for correspondance heat map
+```{r}
+corres_heat_strip1 <- Corresonding_modules_long %>% 
+  mutate(peak_WGCNA = factor(peak_WGCNA, levels = c(
+    1, 3, 6, 12, 24
+  ))) %>% 
+  ggplot(aes(x = "", y = WGCNA)) +
+  geom_tile(aes(fill = peak_WGCNA), color = "grey20") +
+  scale_fill_manual(values = viridis(5, option = "A")) +
+  labs(fill = "peak time") +
+  theme_void() +
+  theme(
+    legend.position = "none",
+    strip.text = element_blank(),
+    text = element_text(size = 14)
+  )
+
+corres_heat_strip2 <- Corresonding_modules_long %>% 
+  mutate(peak_simple = factor(peak_simple, levels = c(
+    1, 3, 6, 12, 24
+  ))) %>% 
+  ggplot(aes(x = SimpleTidy_GeneCoEx, y = "")) +
+  geom_tile(aes(fill = peak_simple), color = "grey20") +
+  scale_fill_manual(values = viridis(5, option = "A")) +
+  labs(fill = "peak time") +
+  theme_void() +
+  theme(
+    legend.position = "bottom",
+    strip.text = element_blank(),
+    text = element_text(size = 14)
+  )
+
+blank <- module_df_colors %>% 
+  ggplot(aes(x = "", y = Module)) +
+  theme_void()
+
+
+wrap_plots(
+  heat_map_color_strip_y, Corresonding_modules_heatmap, corres_heat_strip1, 
+  blank, corres_heat_strip2, blank, 
+  nrow = 2, ncol = 3, 
+  widths = c(0.05, 1, 0.05),
+  heights = c(1, 0.05)
+)  
+
+ggsave("../Results/Tepary_correspondance.svg", height = 5, width = 7)
+ggsave("../Results/Tepary_correspondance.png", height = 5, width = 7)
+```
+## Squared error loss 
+### Simple Tidy Gene CoEx
+```{r}
+Tepary_tidy_msqs <- Exp_table_long_averaged_z_high_var_or_high_F_modules %>% 
+  group_by(module, time_point, treatment) %>% 
+  mutate(mean = mean(z.score)) %>% 
+  mutate(squares = (z.score - mean)^2) %>% 
+  ungroup() %>% 
+  group_by(module) %>% 
+  summarise(
+    ssq = sum(squares)
+  ) %>% 
+  ungroup() %>% 
+  inner_join(
+    my_network_modules %>% 
+      group_by(module) %>% 
+      count(),
+    by = "module"
+  ) %>% 
+  mutate(msq = ssq/n)
+
+Tepary_tidy_msqs
+```
+### WGCNA
+```{r}
+Tepary_WGCNA_msq <-Exp_table_long_averaged_modules %>% 
+  group_by(module, time_point, treatment) %>% 
+  mutate(mean = mean(z.score)) %>% 
+  mutate(squares = (z.score - mean)^2) %>% 
+  ungroup() %>% 
+  group_by(module) %>% 
+  summarise(
+    ssq = sum(squares)
+  ) %>% 
+  ungroup() %>% 
+  inner_join(
+    module_df %>% 
+      group_by(module) %>% 
+      count(),
+    by = "module"
+  ) %>% 
+  mutate(msq = ssq/n) %>% 
+  filter(is.na(msq) == F)
+
+head(Tepary_WGCNA_msq)
+```
+
+
+### Comparison
+```{r}
+lost_function_comparisons <- rbind(
+  Tepary_tidy_msqs %>% 
+    select(msq, n) %>% 
+    mutate(method = "Simple Tidy"),
+  Tepary_WGCNA_msq %>% 
+    select(msq, n) %>% 
+    mutate(method = "WGCNA")
+)
+
+lost_function_comparisons_s <-lost_function_comparisons %>% 
+  group_by(method) %>% 
+  summarise(
+    mean = mean(msq),
+    median = median(msq),
+    sd = sd(msq),
+    NN = n()
+  )
+
+lost_function_comparisons_s
+```
+
+```{r}
+wilcox.test(lost_function_comparisons$msq ~ lost_function_comparisons$method)
+cor.test(lost_function_comparisons$msq, lost_function_comparisons$n)
+```
+
+```{r}
+model_tepary <- lm(msq ~ n + method, data = lost_function_comparisons)
+anova(model_tepary)
+```
+You will need to install the `emmeans` package for analyses of covariance. 
+```{r}
+est_tepary <- emmeans::emmeans(model_tepary, pairwise ~ method)
+est_tepary$emmeans
+est_tepary$contrasts
+```
+
+
+```{r}
+median_separation <- lost_function_comparisons %>% 
+  ggplot(aes(x = method, y = msq)) +
+  ggbeeswarm::geom_quasirandom(aes(fill = method), size = 3,
+                                shape = 21, alpha = 0.8, color = "white") +
+  scale_fill_manual(values = c("tomato1", "grey30")) +
+  labs(x = "method",
+       y = "loss function\n(mean sum of squares)",
+       title = "Data from:\nMafi Moghaddam et al., 2021",
+       caption = paste0(
+         "median1 = ", signif(lost_function_comparisons_s[1, 3], 3), "; ",
+         "median2 = ", signif(lost_function_comparisons_s[2, 3], 3), "\n",
+         "P = ", 
+         signif(
+           wilcox.test(lost_function_comparisons$msq ~ lost_function_comparisons$method)$p.value,
+           2), 
+         "\n(Wilcoxon Rank Sum Test)"
+       )) +
+  theme_classic()+
+  theme(
+    legend.position = "none",
+    text = element_text(size = 14),
+    axis.text = element_text(color = "black"),
+    plot.title = element_text(size = 12),
+    plot.caption = element_text(size = 12, hjust = 0)
+  )
+
+msq_n_scatter <- lost_function_comparisons %>% 
+  ggplot(aes(x = n,  y = msq)) +
+  geom_point(aes(fill = method), size = 3,
+                                shape = 21, alpha = 0.8, color = "white") +
+  scale_fill_manual(values = c("tomato1", "grey30")) +
+  labs(
+    y = "loss function\n(mean sum of squares)",
+    x = "Num. genes in module",
+    caption = paste0(
+      "r = ", signif(
+        cor.test(lost_function_comparisons$msq, lost_function_comparisons$n)$estimate, 3
+      )
+    )
+  ) +
+  theme_classic() +
+  theme(
+    legend.position = c(0.8, 0.9),
+    text = element_text(size = 14),
+    axis.text = element_text(color = "black"),
+    plot.title = element_text(size = 12),
+    plot.caption = element_text(size = 12, hjust = 0)
+  )
+
+wrap_plots(median_separation,
+           msq_n_scatter,
+           nrow = 1)
+
+ggsave("../Results/Tepary_benchmarking_results.svg", height = 4, width = 7, bg = "white")
+ggsave("../Results/Tepary_benchmarking_results.png", height = 4, width = 7, bg = "white")
+```
+# Membership comparison
+```{r}
+module_df
+my_network_modules
+```
+
+```{r}
+find_overlap <- function(SimpleTidy_module, WGCNA_module){
+   x = my_network_modules %>% 
+     filter(module == SimpleTidy_module)
+   
+   y = module_df %>% 
+     rename(LocusName = gene.id) %>% 
+     filter(module == WGCNA_module)
+
+   intersect(x$LocusName, y$LocusName) %>% 
+     length()
+}
+
+find_overlap(
+  SimpleTidy_module = "4",
+  WGCNA_module = "12"
+)
+```
+```{r}
+module_combinations <- expand.grid(
+   SimpleTidy_module = unique(my_network_modules$module),
+   WGCNA_module = unique(module_df$module)
+)
+
+membership_overlap <- mapply(FUN = find_overlap, 
+       module_combinations$SimpleTidy_module, 
+       module_combinations$WGCNA_module) %>% 
+  as.data.frame() %>% 
+  rename(overlap = ".") %>% 
+  cbind(module_combinations)
+
+head(membership_overlap)
+```
+
+
+```{r}
+membership_overlap_annotated <- membership_overlap %>% 
+  mutate(Module = paste0("ME", WGCNA_module)) %>% 
+  inner_join(module_df_colors, by = "Module") %>% 
+  inner_join(module_peak_exp, by = c("SimpleTidy_module" = "module"))
+
+head(membership_overlap_annotated)
+```
+
+## Alluvial plot
+
+```{r}
+membership_overlap_annotated %>% 
+  mutate(peak_time = factor(time_point, 
+                            levels = c(
+                              1, 3, 6, 12, 24
+                            ))) %>% 
+  ggplot(aes(y = overlap, 
+           axis1 = as.factor(SimpleTidy_module), 
+           axis2 = colors)) +
+  geom_alluvium(aes(fill = peak_time), alpha = 0.8) +
+  geom_stratum(fill = "grey70", color = "grey30", width = 0.05) +
+  scale_x_discrete(labels = c("Simple Tidy", "WGCNA"),
+                   limits = c("Simple Tidy", "WGCNA"),
+                   expand = c(0.01, 0.01)) +
+  scale_fill_manual(values = viridis(5, option = "A")) +
+  guides(fill = guide_legend(override.aes = list(color = "black"))) +
+  labs(x = "method",
+       y = "number of genes",
+       fill = "peak time") +
+  theme_minimal() +
+  theme(
+    legend.position = "bottom",
+    text = element_text(size = 14),
+    axis.text = element_text(color = "black"),
+    panel.grid = element_blank()
+  ) +
+  coord_flip()
+
+ggsave("../Results/WGCNA_tepary_tidy_memebership.svg", height = 3, width = 8, bg = "white")
+ggsave("../Results/WGCNA_tepary_tidy_memebership.png", height = 3, width = 8, bg = "white")
+```
+

@@ -1,0 +1,1054 @@
+---
+title: "Tomato_SimpleTidy_vs_WGCNA"
+author: "Chenxin Li"
+date: '2022-10-14'
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Introduction
+
+This work sheet aims to compare Li's SimpleTidy GeneCoEx workflow with the WGCNA package. 
+[WGCNA](https://bmcbioinformatics.biomedcentral.com/articles/10.1186/1471-2105-9-559) is regarded as the "method of choice" by some for gene co-expression analyses. 
+We will be benchmarking the two workflows using the tomato fruit developmental series data. 
+Ref: [Shinozaki et al., 2018](https://www.nature.com/articles/s41467-017-02782-9).
+
+# Dependencies
+```{r}
+library(tidyverse)
+library(WGCNA)
+
+library(ggalluvial)
+library(ggbeeswarm)
+
+library(patchwork)
+library(RColorBrewer)
+library(viridis)
+
+set.seed(666)
+```
+
+I kind of ran into a dependency hell for WGCNA. I sorted it out using these steps:
+
+1. Install BioConductor Manager: `install.packages("BiocManager")`
+2. Install WGCNA from BioConductor: `BiocManager::install("WGCNA", force = T)`
+
+Hopefully you don't run into this issue. If you do, hopefully my fix works for you. 
+
+# Load data 
+I already performed gene co-expression and clustering analyses using my "Simply Tidy Gene CoEx" workflow. 
+I will just import the results from my analyses first. 
+
+```{r}
+modules_mean_z_reorded <- read_csv("../Results/modules_mean_z_reordered.csv", col_types = cols())
+my_network_modules <- read_csv("../Results/my_network_modules.csv", col_types = cols())
+Exp_table_long_averaged_z_high_var_modules <- read_csv("../Results/Exp_table_long_averaged_z_high_var_modules.csv", col_types = cols())
+```
+
+I am reading in two tables.
+
+1. `modules_mean_z_reordered` contains the mean z score of all genes in each module across developmental stages and tissues. 
+2. `my_network_modules` contains the module membership for each gene in the analyses. 
+
+For WGCNA, I need a normalized gene expression matrix. Let's load that too. 
+```{r}
+Exp_table <- read_csv("../Results/Tomato_Exp_table_averaged.csv", col_types = cols())
+head(Exp_table)
+```
+
+For the rest of this workflow, I will be following this [tutorial for WCGNA](https://bioinformaticsworkbook.org/tutorials/wgcna.html#gsc.tab=0). 
+I am using normalized, log transformed data that were already averaged up to the reps as input. 
+
+# Diagnostic statistics
+WGCNA has its edge selection method. It picks a threshold value, below which edges are removed. 
+The math behind it is beyond me. But let's just follow the instructions. 
+```{r}
+allowWGCNAThreads(4)
+```
+
+```{r}
+Exp_table <- as.data.frame(Exp_table)
+row.names(Exp_table) <- Exp_table$gene_ID
+input_mat <- t(Exp_table[,-1])
+input_mat[1:6, 1:10]
+```
+WGCNA requires a matrix with libraries as rows and genes as names. So I made that for it. 
+
+```{r}
+powers <- c(c(1:10), seq(from = 12, to = 20, by = 2))
+
+soft <- pickSoftThreshold(
+  input_mat,             
+  powerVector = powers,
+  verbose = 5
+  )
+```
+
+```{r}
+WGCNA_power1 <- soft$fitIndices %>% 
+  ggplot(aes(x = Power, y = SFT.R.sq )) +
+  geom_line(color = "grey20", size = 1.1, alpha = 0.8) +
+  geom_point(size = 3, alpha = 0.8, color = "dodgerblue") +
+  labs(x = "Soft Threshold (power)",
+       y = "Scale Free Topology\nModel Fit signed R^2",
+       title = "Data from Shinozaki et al., 2018") +
+  theme_classic() +
+  theme(
+    text = element_text(size = 14),
+    axis.text = element_text(color = "black"),
+    plot.title = element_text(size = 12)
+  )
+
+
+WGCNA_power2 <- soft$fitIndices %>% 
+  ggplot(aes(x = Power, y = mean.k. )) +
+  geom_line(color = "grey20", size = 1.1, alpha = 0.8) +
+  geom_point(size = 3, alpha = 0.8, color = "violetred2") +
+  labs(x = "Soft Threshold (power)",
+       y = "Mean Connectivity") +
+  theme_classic() +
+  theme(
+    text = element_text(size = 14),
+    axis.text = element_text(color = "black")
+  )
+
+wrap_plots(WGCNA_power1, WGCNA_power2,
+           ncol = 2)
+
+ggsave("../Results/WGCNA_tomato_power.svg", width = 6, height = 3, bg = "white")
+ggsave("../Results/WGCNA_tomato_power.png", width = 6, height = 3, bg = "white")
+```
+Let's go with power of 9, where the curve stabilizes. 
+
+# Detect modules 
+```{r}
+picked_power <- 9
+temp_cor <- cor
+cor <- WGCNA::cor
+
+tomato_WGCNA_network <- blockwiseModules(
+  input_mat,
+  
+  power = picked_power, 
+  networkType = "signed",
+  
+  deepSplit = 2,
+  pamRespectsDendro = F,
+  minModuleSize = 30,
+  maxBlockSize = 4000,
+  
+  reassignThreshold = 0,
+  mergeCutHeight = 0.25,
+  
+  saveTOMs = T,
+  saveTOMFileBase = "ER",
+  
+  numericLabels = T,
+  verbose = 3
+)  
+
+cor <- temp_cor
+```
+
+## Cluster dendrogram
+```{r}
+mergedColors <- labels2colors(tomato_WGCNA_network$colors)
+
+plotDendroAndColors(
+  tomato_WGCNA_network$dendrograms[[1]],
+  mergedColors[tomato_WGCNA_network$blockGenes[[1]]],
+  "Module colors",
+  dendroLabels = FALSE,
+  hang = 0.03,
+  addGuide = TRUE,
+  guideHang = 0.05 )
+```
+# Module membership
+```{r}
+module_df <- data.frame(
+  gene.id = names(tomato_WGCNA_network$colors),
+  module = tomato_WGCNA_network$colors
+)
+
+head(module_df)
+module_df %>% 
+  group_by(module) %>% 
+  count()
+```
+We got 114 modules. 
+
+# Module-treatment correspondance 
+```{r}
+Module_eigen <- moduleEigengenes(input_mat, tomato_WGCNA_network$colors)$eigengenes
+```
+
+## Heat map representation 
+### Reorder rows and columns 
+```{r}
+Module_eigen_long <- Module_eigen %>% 
+  mutate(tag = row.names(.)) %>% 
+  pivot_longer(cols = !tag, names_to = "Module", values_to = "Eigen") %>% 
+  separate(tag, c("tissue", "dev_stage"), sep = ";") %>% 
+  mutate(order_x = case_when(
+        str_detect(dev_stage, "5") ~ 1,
+        str_detect(dev_stage, "10") ~ 2,
+        str_detect(dev_stage, "20") ~ 3,
+        str_detect(dev_stage, "30") ~ 4,
+        str_detect(dev_stage, "MG") ~ 5,
+        str_detect(dev_stage, "Br") ~ 6,
+        str_detect(dev_stage, "Pk") ~ 7,
+        str_detect(dev_stage, "LR") ~ 8,
+        str_detect(dev_stage, "RR") ~ 9
+  )) %>%  
+  mutate(stage = case_when(
+    str_detect(dev_stage, "MG|Br|Pk") ~ str_sub(dev_stage, start = 1, end = 2),
+    T ~ dev_stage
+  )) %>% 
+  mutate(stage = factor(stage, levels = c(
+   "5 DPA",
+   "10 DPA",
+   "20 DPA",
+   "30 DPA",
+   "MG",
+   "Br",
+   "Pk",
+   "LR",
+   "RR"
+  ))) %>% 
+  mutate(dev_stage = reorder(dev_stage, order_x)) 
+
+
+head(Module_eigen_long)
+```
+
+#### Module peak 
+```{r}
+Module_eigen_long_peak <- Module_eigen_long %>% 
+  group_by(Module) %>% 
+  slice_max(order_by = Eigen, n = 1) %>% 
+  ungroup() %>% 
+  mutate(order_y = case_when(
+        str_detect(dev_stage, "5") ~ 1,
+        str_detect(dev_stage, "10") ~ 2,
+        str_detect(dev_stage, "20") ~ 3,
+        str_detect(dev_stage, "30") ~ 4,
+        str_detect(dev_stage, "MG") ~ 5,
+        str_detect(dev_stage, "Br") ~ 6,
+        str_detect(dev_stage, "Pk") ~ 7,
+        str_detect(dev_stage, "LR") ~ 8,
+        str_detect(dev_stage, "RR") ~ 9
+  )) %>% 
+  mutate(Module = reorder(Module, -order_y)) %>% 
+  mutate(peak_stage = dev_stage) %>% 
+  select(Module, order_y, peak_stage)
+   
+
+head(Module_eigen_long_peak)
+```
+```{r}
+Module_eigen_long_reordered <- Module_eigen_long %>% 
+  full_join(Module_eigen_long_peak, by = "Module") %>% 
+  mutate(Module = reorder(Module, -order_y)) 
+```
+
+### Outliers
+```{r}
+summary(Module_eigen_long_reordered$Eigen)
+```
+
+
+```{r}
+tomato_WGCNA_heatmap <- Module_eigen_long_reordered %>% 
+  mutate(Eigen_clipped = case_when(
+    Eigen <= 0 ~ 0,
+    T ~ Eigen
+  )) %>% 
+  ggplot(aes(x = tissue, y = Module)) +
+  facet_grid(.~ dev_stage, scales = "free", space = "free") +
+  geom_tile(aes(fill = Eigen_clipped)) +
+  scale_fill_gradientn(colors = brewer.pal(9, "PuBuGn"),
+                       limits = c(0, 1),
+                       breaks = c(0, 0.5, 1),
+                       labels = c("<= 0", "0.5" , "1")) +
+  labs(x = NULL,
+       y = "Module",
+       fill = "Eigen Gene Exp.") +
+  theme_classic() +
+  theme(
+    text = element_text(size = 14),
+    #axis.text = element_text(color = "black"),
+    axis.text = element_blank(),
+    strip.text = element_blank(),
+    legend.position = "top",
+    panel.spacing = unit(0.5, "lines") 
+  )
+
+tomato_WGCNA_heatmap
+```
+
+### Make color strip for heatmap 
+```{r}
+module_df_colors <- Module_eigen_long_peak %>% 
+  mutate(colors = labels2colors(Module))
+
+module_df_colors
+
+heat_map_color_strip_y <- module_df_colors %>% 
+  ggplot(aes(x = "", y = Module)) +
+  geom_tile(aes(fill = colors), alpha = 0.8) +
+  scale_fill_identity() +
+  theme_void()
+```
+
+```{r}
+heatmap_color_strip1 <- expand.grid(
+  tissue = unique(Module_eigen_long$tissue),
+  dev_stage = unique(Module_eigen_long$dev_stage), 
+  stringsAsFactors = F
+) %>% 
+  mutate(dev_stage = as.character(dev_stage)) %>% 
+  filter(dev_stage != "Anthesis") %>% 
+  filter(str_detect(tissue, "epider|chyma|Vasc") == F) %>% 
+  filter((dev_stage == "5 DPA" &
+           str_detect(tissue, "Locular tissue|Placenta|Seeds"))==F) %>% 
+  filter((str_detect(dev_stage, "styla") &
+           str_detect(tissue, "Colum"))==F) %>% 
+  mutate(order_x = case_when(
+        str_detect(dev_stage, "5") ~ 1,
+        str_detect(dev_stage, "10") ~ 2,
+        str_detect(dev_stage, "20") ~ 3,
+        str_detect(dev_stage, "30") ~ 4,
+        str_detect(dev_stage, "MG") ~ 5,
+        str_detect(dev_stage, "Br") ~ 6,
+        str_detect(dev_stage, "Pk") ~ 7,
+        str_detect(dev_stage, "LR") ~ 8,
+        str_detect(dev_stage, "RR") ~ 9
+  )) %>% 
+  mutate(stage = case_when(
+    str_detect(dev_stage, "MG|Br|Pk") ~ str_sub(dev_stage, start = 1, end = 2),
+    T ~ dev_stage
+  )) %>% 
+  mutate(stage = factor(stage, levels = c(
+   "5 DPA",
+   "10 DPA",
+   "20 DPA",
+   "30 DPA",
+   "MG",
+   "Br",
+   "Pk",
+   "LR",
+   "RR"
+  ))) %>% 
+  mutate(dev_stage = reorder(dev_stage, order_x)) %>% 
+  ggplot(aes(x = tissue, y = 1)) +
+  facet_grid(.~ dev_stage, scales = "free", space = "free") +
+  geom_tile(aes(fill = tissue)) +
+  scale_fill_manual(values = brewer.pal(8, "Set2")) +
+  guides(fill = guide_legend(nrow = 1)) +
+  theme_void() +
+  theme(
+    legend.position = "bottom",
+    strip.text = element_blank(),
+    text = element_text(size = 14),
+    panel.spacing = unit(0.5, "lines"),
+    legend.key.height = unit(0.75, "lines")
+  )
+
+heatmap_color_strip2 <- expand.grid(
+  tissue = unique(Module_eigen_long$tissue),
+  dev_stage = unique(Module_eigen_long$dev_stage), 
+  stringsAsFactors = F
+) %>% 
+  mutate(dev_stage = as.character(dev_stage)) %>% 
+  filter(dev_stage != "Anthesis") %>% 
+  filter(str_detect(tissue, "epider|chyma|Vasc") == F) %>% 
+  filter((dev_stage == "5 DPA" &
+           str_detect(tissue, "Locular tissue|Placenta|Seeds"))==F) %>% 
+  filter((str_detect(dev_stage, "styla") &
+           str_detect(tissue, "Colum"))==F) %>% 
+  mutate(order_x = case_when(
+        str_detect(dev_stage, "5") ~ 1,
+        str_detect(dev_stage, "10") ~ 2,
+        str_detect(dev_stage, "20") ~ 3,
+        str_detect(dev_stage, "30") ~ 4,
+        str_detect(dev_stage, "MG") ~ 5,
+        str_detect(dev_stage, "Br") ~ 6,
+        str_detect(dev_stage, "Pk") ~ 7,
+        str_detect(dev_stage, "LR") ~ 8,
+        str_detect(dev_stage, "RR") ~ 9
+  )) %>% 
+  mutate(stage = case_when(
+    str_detect(dev_stage, "MG|Br|Pk") ~ str_sub(dev_stage, start = 1, end = 2),
+    T ~ dev_stage
+  )) %>% 
+  mutate(stage = factor(stage, levels = c(
+   "5 DPA",
+   "10 DPA",
+   "20 DPA",
+   "30 DPA",
+   "MG",
+   "Br",
+   "Pk",
+   "LR",
+   "RR"
+  ))) %>% 
+  mutate(dev_stage = reorder(dev_stage, order_x)) %>% 
+  ggplot(aes(x = tissue, y = 1)) +
+  facet_grid(.~ dev_stage, scales = "free", space = "free") +
+  geom_tile(aes(fill = stage)) +
+  scale_fill_manual(values = viridis(9, option = "D")) +
+  labs(fill = "stage") +
+  guides(fill = guide_legend(nrow = 1)) +
+  theme_void() +
+  theme(
+    legend.position = "bottom",
+    strip.text = element_blank(),
+    text = element_text(size = 14),
+    panel.spacing = unit(0.5, "lines"),
+    legend.key.height = unit(0.75, "lines")
+  )
+
+blank <- module_df_colors %>% 
+  ggplot(aes(x = "", y = Module)) +
+  theme_void()
+```
+
+```{r}
+wrap_plots(tomato_WGCNA_heatmap, heat_map_color_strip_y,
+           heatmap_color_strip1, blank,
+           heatmap_color_strip2, blank, 
+           nrow = 3, ncol = 2, 
+           heights = c(1, 0.05, 0.05),
+           widths = c(1, 0.05), guides = "collect") &
+  theme(
+    legend.position = "bottom",
+    legend.box = "vertical"
+  )
+
+ggsave("../Results/WGCNA_tomato_heatmap.svg", height = 7, width = 8, bg = "white")
+ggsave("../Results/WGCNA_tomato_heatmap.png", height = 7, width = 8, bg = "white")
+```
+# Module QC
+## Bait genes
+We have two bait genes:
+
+1. PG: Solly.M82.10G020850.1, involved in making the fruit softer
+2. PSY1: Solly.M82.03G005440.1, involved in making the fruit red. 
+
+Let's check which module(s) they are assigned to.  
+```{r}
+module_df %>% 
+  filter(gene.id == "Solly.M82.10G020850.1" | 
+           gene.id == "Solly.M82.03G005440.1")
+
+module_df_colors %>% 
+  filter(Module == "ME3")
+```
+They are both in module 3 or "plum1" module. This is good to see, because we know they are involved in the same biological processes. 
+I have no idea which one plum1 is looking at the heat map. 
+
+## Line graphs
+```{r}
+Exp_table_long_averaged_modules <- Exp_table_long_averaged %>% 
+  inner_join(module_df, by = c("gene_ID" = "gene.id")) %>% 
+  mutate(Module = paste0("ME", module)) %>% 
+  inner_join(module_df_colors %>% 
+               select(Module, colors), by = "Module") %>% 
+  group_by(gene_ID, ) %>% 
+  mutate(z.score = (mean.logTPM - mean(mean.logTPM))/sd(mean.logTPM)) %>% 
+  ungroup()
+
+head(Exp_table_long_averaged_modules)
+```
+
+I computed z score here. Now I can graph a couple modules to check. 
+We will do Module 3 because that where our baits are. 
+Let's pick another one. 
+I am picking module 2 because according to peak expression, it peaks at the earliest stage of development. 
+
+Before we make the line graph, let's also make an average of z scores for all the modules. 
+```{r}
+tomato_WGCNA_modules_mean_z <- Exp_table_long_averaged_modules %>% 
+  group_by(Module, dev_stage, tissue, colors) %>% 
+  summarise(mean.z = mean(z.score)) %>% 
+  ungroup() %>% 
+  filter(is.na(mean.z)==F) %>% 
+  mutate(order_x = case_when(
+        str_detect(dev_stage, "5") ~ 1,
+        str_detect(dev_stage, "10") ~ 2,
+        str_detect(dev_stage, "20") ~ 3,
+        str_detect(dev_stage, "30") ~ 4,
+        str_detect(dev_stage, "MG") ~ 5,
+        str_detect(dev_stage, "Br") ~ 6,
+        str_detect(dev_stage, "Pk") ~ 7,
+        str_detect(dev_stage, "LR") ~ 8,
+        str_detect(dev_stage, "RR") ~ 9
+  )) %>% 
+  mutate(dev_stage = reorder(dev_stage, order_x))
+
+head(tomato_WGCNA_modules_mean_z)
+```
+
+
+```{r}
+module_line_plot <- Exp_table_long_averaged_modules %>% 
+  mutate(order_x = case_when(
+    str_detect(dev_stage, "5") ~ 1,
+    str_detect(dev_stage, "10") ~ 2,
+    str_detect(dev_stage, "20") ~ 3,
+    str_detect(dev_stage, "30") ~ 4,
+    str_detect(dev_stage, "MG") ~ 5,
+    str_detect(dev_stage, "Br") ~ 6,
+    str_detect(dev_stage, "Pk") ~ 7,
+    str_detect(dev_stage, "LR") ~ 8,
+    str_detect(dev_stage, "RR") ~ 9
+  )) %>% 
+  mutate(dev_stage = reorder(dev_stage, order_x)) %>% 
+  filter(Module == "ME3" |
+          Module == "ME2") %>% 
+  ggplot(aes(x = dev_stage, y = z.score)) +
+  facet_grid(Module ~ tissue) +
+  geom_line(aes(group = gene_ID), alpha = 0.3, color = "grey70") +
+  geom_line(
+    data = tomato_WGCNA_modules_mean_z %>% 
+      filter(
+        Module == "ME3" |
+          Module == "ME2"
+      ), 
+    aes(y = mean.z, group = Module),
+    size = 1.1, alpha = 0.9
+  ) +
+  labs(x = NULL,
+       y = "z score") +
+  theme_classic() +
+  theme(
+    text = element_text(size = 14),
+    axis.text = element_text(color = "black"),
+    axis.text.x = element_blank(),
+    panel.spacing = unit(1, "line")
+  )
+
+
+module_lines_color_strip <- expand.grid(
+  tissue = unique(Module_eigen_long$tissue),
+  dev_stage = unique(Module_eigen_long$dev_stage), 
+  stringsAsFactors = F
+) %>% 
+  mutate(dev_stage = as.character(dev_stage)) %>% 
+  filter(dev_stage != "Anthesis") %>% 
+  filter(str_detect(tissue, "epider|chyma|Vasc") == F) %>% 
+  mutate(order_x = case_when(
+        str_detect(dev_stage, "5") ~ 1,
+        str_detect(dev_stage, "10") ~ 2,
+        str_detect(dev_stage, "20") ~ 3,
+        str_detect(dev_stage, "30") ~ 4,
+        str_detect(dev_stage, "MG") ~ 5,
+        str_detect(dev_stage, "Br") ~ 6,
+        str_detect(dev_stage, "Pk") ~ 7,
+        str_detect(dev_stage, "LR") ~ 8,
+        str_detect(dev_stage, "RR") ~ 9
+  )) %>% 
+  mutate(stage = case_when(
+    str_detect(dev_stage, "MG|Br|Pk") ~ str_sub(dev_stage, start = 1, end = 2),
+    T ~ dev_stage
+  )) %>% 
+  mutate(stage = factor(stage, levels = c(
+   "5 DPA",
+   "10 DPA",
+   "20 DPA",
+   "30 DPA",
+   "MG",
+   "Br",
+   "Pk",
+   "LR",
+   "RR"
+  ))) %>% 
+  mutate(dev_stage = reorder(dev_stage, order_x)) %>% 
+  ggplot(aes(x = dev_stage, y = 1)) +
+  facet_grid(. ~ tissue) +
+  geom_tile(aes(fill = stage)) +
+  scale_fill_manual(values = viridis(9, option = "D")) +
+  theme_void() +
+  theme(
+    legend.position = "bottom",
+    strip.text = element_blank(),
+    text = element_text(size = 14),
+    panel.spacing = unit(1, "lines")
+  )
+
+wrap_plots(module_line_plot, module_lines_color_strip,
+           nrow = 2, heights = c(1, 0.08))
+
+ggsave("../Results/WGCNA_tomato_module_line_plots.svg", height = 4, width = 8.2, bg = "white")
+ggsave("../Results/WGCNA_tomato_module_line_plots.png", height = 4, width = 8.2, bg = "white")
+```
+
+# Heatmap for module z score
+```{r}
+tomato_WGCNA_modules_mean_z_reordered <- tomato_WGCNA_modules_mean_z %>% 
+  inner_join(Module_eigen_long_peak, by = "Module") %>% 
+  mutate(Module = reorder(Module, -order_y))
+
+head(tomato_WGCNA_modules_mean_z_reordered)
+```
+```{r}
+tomato_WGCNA_modules_mean_z_reordered$mean.z %>% summary()
+quantile(tomato_WGCNA_modules_mean_z_reordered$mean.z, c(0.025, 0.975))
+```
+```{r}
+tomato_WGCNA_heatmap.z <- tomato_WGCNA_modules_mean_z_reordered %>% 
+  mutate(mean.z.clipped = case_when(
+    mean.z > 1.5 ~ 1.5,
+    mean.z < -1.5 ~ -1.5,
+    T ~ mean.z
+  )) %>% 
+  ggplot(aes(x = tissue, y = as.factor(Module))) +
+  facet_grid(.~ dev_stage, scales = "free", space = "free") +
+  geom_tile(aes(fill = mean.z.clipped), color = "grey80") +
+  scale_fill_gradientn(colors = rev(brewer.pal(11, "RdBu")), limits = c(-1.5, 1.5),
+                       breaks = c(-1.5, 0, 1.5), labels = c("< -1.5", "0", "> 1.5")) +
+  labs(x = NULL,
+       y = "Module",
+       fill = "z score") +
+  theme_classic() +
+  theme(
+    text = element_text(size = 14),
+    #axis.text = element_text(color = "black"),
+    axis.text = element_blank(),
+    strip.text = element_blank(),
+    legend.position = "top",
+    panel.spacing = unit(0.5, "lines") 
+  )
+
+wrap_plots(tomato_WGCNA_heatmap.z, heat_map_color_strip_y,
+           heatmap_color_strip1, blank,
+           heatmap_color_strip2, blank, 
+           nrow = 3, ncol = 2, 
+           heights = c(1, 0.05, 0.05),
+           widths = c(1, 0.05), guides = "collect") &
+  theme(
+    legend.position = "bottom",
+    legend.box = "vertical"
+  )
+
+ggsave("../Results/WGCNA_tomato_heatmap.z.svg", height = 7, width = 8, bg = "white")
+ggsave("../Results/WGCNA_tomato_heatmap.z.png", height = 7, width = 8, bg = "white")
+```
+# Cross-workflow comparison
+## Correspondance
+
+### Wide of WGCNA
+```{r}
+tomato_WGCNA_modules_mean_z_reordered_wide <- tomato_WGCNA_modules_mean_z_reordered %>% 
+  select(dev_stage, tissue, colors, mean.z) %>% 
+  mutate(tag = paste(tissue, dev_stage, sep = ";")) %>% 
+  select(-tissue, -dev_stage) %>% 
+  pivot_wider(names_from = colors, values_from = mean.z) %>% 
+  as.data.frame()
+
+row.names(tomato_WGCNA_modules_mean_z_reordered_wide) <- tomato_WGCNA_modules_mean_z_reordered_wide$tag
+head(tomato_WGCNA_modules_mean_z_reordered_wide)
+```
+### Wide of Simple Tidy GeneCoEx
+```{r}
+modules_mean_z_reorded_wide <- modules_mean_z_reorded %>% 
+  select(dev_stage, tissue, module, mean.z) %>% 
+  mutate(tag = paste(tissue, dev_stage, sep = ";")) %>% 
+  select(-tissue, -dev_stage) %>% 
+  pivot_wider(names_from = module, values_from = mean.z) %>% 
+  as.data.frame()
+
+row.names(modules_mean_z_reorded_wide) <- modules_mean_z_reorded_wide$tag
+head(modules_mean_z_reorded_wide)
+```
+
+```{r}
+modules_mean_z_reorded_wide$tag == tomato_WGCNA_modules_mean_z_reordered_wide$tag
+```
+### Find corresponding modules
+```{r}
+Corresonding_modules <- apply(tomato_WGCNA_modules_mean_z_reordered_wide[,-1], 
+                              FUN = stats::cor, modules_mean_z_reorded_wide[,-1], 
+                              MARGIN = 2)
+
+dim(Corresonding_modules)
+```
+```{r}
+Corresonding_modules_long <- Corresonding_modules %>% 
+  as.data.frame() %>% 
+  cbind(SimpleTidy_GeneCoEx = colnames(modules_mean_z_reorded_wide)[-1]) %>% 
+  pivot_longer(cols = ! SimpleTidy_GeneCoEx, names_to = "WGCNA", values_to = "r") %>% 
+  inner_join(module_peak_exp %>% 
+               mutate(module = as.character(module)) %>% 
+               select(dev_stage, tissue, module, order_y, peak_exp), 
+             by = c("SimpleTidy_GeneCoEx" = "module")) %>% 
+  rename(order_simple = order_y) %>% 
+  inner_join(
+    tomato_WGCNA_modules_mean_z_reordered %>% 
+  group_by(colors, order_y, peak_stage) %>% 
+  count() %>% 
+    select(-n), by = c("WGCNA" = "colors")
+  ) %>% 
+  rename(order_WGCNA = order_y) %>% 
+  mutate(SimpleTidy_GeneCoEx = reorder(SimpleTidy_GeneCoEx, -order_simple)) %>% 
+  mutate(WGCNA = reorder(WGCNA,  order_WGCNA))
+
+
+head(Corresonding_modules_long)
+```
+
+```{r}
+Corresonding_modules_heatmap <- Corresonding_modules_long %>% 
+  ggplot(aes(x = SimpleTidy_GeneCoEx, y = WGCNA)) +
+  geom_tile(aes(fill = r)) +
+  scale_fill_gradientn(colours = rev(brewer.pal(11, "RdBu")),
+                       limits = c(-1, 1),
+                       breaks = c(-0.9, 0, 0.9))+
+  labs(x = "Simple Tidy GeneCoEx Modules",
+       y = "WGCNA Modules") +
+  theme_minimal() +
+  theme(
+    legend.position = "top",
+    text = element_text(size = 14),
+    axis.text = element_text(color = "black"),
+    axis.text.y = element_blank(),
+    legend.key.width = unit(1.2, "lines"),
+    panel.grid = element_blank()
+  )
+
+
+Corresonding_modules_heatmap
+```
+
+
+### Make color strip for correspondance heat map
+```{r}
+corres_heat_strip1 <- Corresonding_modules_long %>% 
+  mutate(peak_stage = as.character(peak_stage)) %>% 
+  mutate(order_x = case_when(
+        str_detect(peak_stage, "5") ~ 1,
+        str_detect(peak_stage, "10") ~ 2,
+        str_detect(peak_stage, "20") ~ 3,
+        str_detect(peak_stage, "30") ~ 4,
+        str_detect(peak_stage, "MG") ~ 5,
+        str_detect(peak_stage, "Br") ~ 6,
+        str_detect(peak_stage, "Pk") ~ 7,
+        str_detect(peak_stage, "LR") ~ 8,
+        str_detect(peak_stage, "RR") ~ 9
+  )) %>% 
+  mutate(stage = case_when(
+    str_detect(peak_stage, "MG|Br|Pk") ~ str_sub(peak_stage, start = 1, end = 2),
+    T ~ peak_stage
+  )) %>% 
+  mutate(stage = factor(stage, levels = c(
+   "5 DPA",
+   "10 DPA",
+   "20 DPA",
+   "30 DPA",
+   "MG",
+   "Br",
+   "Pk",
+   "LR",
+   "RR"
+  ))) %>% 
+  ggplot(aes(x = "", y = WGCNA)) +
+  geom_tile(aes(fill = stage)) +
+  scale_fill_manual(values = viridis(9, option = "D")) +
+  labs(fill = "peak stage") +
+  theme_void() +
+  theme(
+    legend.position = "none",
+    strip.text = element_blank(),
+    text = element_text(size = 14)
+  )
+
+
+corres_heat_strip2 <- Corresonding_modules_long %>% 
+  mutate(peak_exp = as.character(peak_exp)) %>% 
+  mutate(order_x = case_when(
+        str_detect(peak_exp, "5") ~ 1,
+        str_detect(peak_exp, "10") ~ 2,
+        str_detect(peak_exp, "20") ~ 3,
+        str_detect(peak_exp, "30") ~ 4,
+        str_detect(peak_exp, "MG") ~ 5,
+        str_detect(peak_exp, "Br") ~ 6,
+        str_detect(peak_exp, "Pk") ~ 7,
+        str_detect(peak_exp, "LR") ~ 8,
+        str_detect(peak_exp, "RR") ~ 9
+  )) %>% 
+  mutate(stage = case_when(
+    str_detect(peak_exp, "MG|Br|Pk") ~ str_sub(peak_exp, start = 1, end = 2),
+    T ~ peak_exp
+  )) %>% 
+  mutate(stage = factor(stage, levels = c(
+   "5 DPA",
+   "10 DPA",
+   "20 DPA",
+   "30 DPA",
+   "MG",
+   "Br",
+   "Pk",
+   "LR",
+   "RR"
+  ))) %>%
+  ggplot(aes(x = SimpleTidy_GeneCoEx, y = "")) +
+  geom_tile(aes(fill = stage)) +
+  scale_fill_manual(values = viridis(9, option = "D")[c(-4,-8)]) +
+  labs(fill = "peak stage") +
+  theme_void() +
+  theme(
+    legend.position = "bottom",
+    strip.text = element_blank(),
+    text = element_text(size = 14)
+  )
+
+wrap_plots(
+  heat_map_color_strip_y, Corresonding_modules_heatmap, corres_heat_strip1, 
+  blank, corres_heat_strip2, blank, 
+  nrow = 2, ncol = 3, 
+  widths = c(0.05, 1, 0.05),
+  heights = c(1, 0.05)
+)  
+
+ggsave("../Results/Tomato_correspondance.svg", height = 7, width = 5)
+ggsave("../Results/Tomato_correspondance.png", height = 7, width = 5)
+
+```
+
+
+## Squared error loss 
+### Simple Tidy Gene CoEx
+```{r}
+Tomato_tidy_msqs <- Exp_table_long_averaged_z_high_var_modules %>% 
+  group_by(module, tissue, dev_stage) %>% 
+  mutate(mean = mean(z.score)) %>% 
+  mutate(squares = (z.score - mean)^2) %>% 
+  ungroup() %>% 
+  group_by(module) %>% 
+  summarise(
+    ssq = sum(squares)
+  ) %>% 
+  ungroup() %>% 
+  inner_join(
+    my_network_modules %>% 
+      group_by(module) %>% 
+      count(),
+    by = "module"
+  ) %>% 
+  mutate(msq = ssq/n)
+
+Tomato_tidy_msqs
+```
+
+### WGCNA
+```{r}
+Tomato_WGCNA_msq <-Exp_table_long_averaged_modules %>% 
+  group_by(module, tissue, dev_stage) %>% 
+  mutate(mean = mean(z.score)) %>% 
+  mutate(squares = (z.score - mean)^2) %>% 
+  ungroup() %>% 
+  group_by(module) %>% 
+  summarise(
+    ssq = sum(squares)
+  ) %>% 
+  ungroup() %>% 
+  inner_join(
+    module_df %>% 
+      group_by(module) %>% 
+      count(),
+    by = "module"
+  ) %>% 
+  mutate(msq = ssq/n) %>% 
+  filter(is.na(msq) == F)
+
+head(Tomato_WGCNA_msq)
+```
+
+### Comparison
+```{r}
+lost_function_comparisons <- rbind(
+  Tomato_tidy_msqs %>% 
+    select(msq, n) %>% 
+    mutate(method = "Simple Tidy"),
+  Tomato_WGCNA_msq %>% 
+    select(msq, n) %>% 
+    mutate(method = "WGCNA")
+)
+
+lost_function_comparisons_s <-lost_function_comparisons %>% 
+  group_by(method) %>% 
+  summarise(
+    mean = mean(msq),
+    median = median(msq),
+    sd = sd(msq),
+    NN = n()
+  )
+
+lost_function_comparisons_s
+```
+
+```{r}
+wilcox.test(lost_function_comparisons$msq ~ lost_function_comparisons$method)
+cor.test(lost_function_comparisons$msq, lost_function_comparisons$n)
+```
+
+
+
+```{r}
+median_separation <- lost_function_comparisons %>% 
+  ggplot(aes(x = method, y = msq)) +
+  ggbeeswarm::geom_quasirandom(aes(fill = method), size = 3,
+                                shape = 21, alpha = 0.8, color = "white") +
+  scale_fill_manual(values = c("tomato1", "grey30")) +
+  labs(x = "method",
+       y = "loss function\n(mean sum of squares)",
+       title = "Data from Shinozaki et al., 2018",
+       caption = paste0(
+         "median1 = ", signif(lost_function_comparisons_s[1, 3], 3), "; ",
+         "median2 = ", signif(lost_function_comparisons_s[2, 3], 3), "\n",
+         "P = ", 
+         signif(
+           wilcox.test(lost_function_comparisons$msq ~ lost_function_comparisons$method)$p.value,
+           2), 
+         "\n(Wilcoxon Rank Sum Test)"
+       )) +
+  theme_classic()+
+  theme(
+    legend.position = "none",
+    text = element_text(size = 14),
+    axis.text = element_text(color = "black"),
+    plot.title = element_text(size = 12),
+    plot.caption = element_text(size = 12, hjust = 0)
+  )
+
+msq_n_scatter <- lost_function_comparisons %>% 
+  ggplot(aes(x = n,  y = msq)) +
+  geom_point(aes(fill = method), size = 3,
+                                shape = 21, alpha = 0.8, color = "white") +
+  scale_fill_manual(values = c("tomato1", "grey30")) +
+  labs(
+    y = "loss function\n(mean sum of squares)",
+    x = "Num. genes in module",
+    caption = paste0(
+      "r = ", signif(
+        cor.test(lost_function_comparisons$msq, lost_function_comparisons$n)$estimate, 3
+      )
+    )
+  ) +
+  theme_classic() +
+  theme(
+    legend.position = c(0.8, 0.2),
+    text = element_text(size = 14),
+    axis.text = element_text(color = "black"),
+    plot.title = element_text(size = 12),
+    plot.caption = element_text(size = 12, hjust = 0)
+  )
+
+wrap_plots(median_separation,
+           msq_n_scatter,
+           nrow = 1)
+
+ggsave("../Results/Tomato_benchmarking_results.svg", height = 4, width = 7, bg = "white")
+ggsave("../Results/Tomato_benchmarking_results.png", height = 4, width = 7, bg = "white")
+```
+
+# Membership comparison
+```{r}
+module_df
+my_network_modules
+```
+
+```{r}
+find_overlap <- function(SimpleTidy_module, WGCNA_module){
+   x = my_network_modules %>% 
+     filter(module == SimpleTidy_module)
+   
+   y = module_df %>% 
+     rename(gene_ID = gene.id) %>% 
+     filter(module == WGCNA_module)
+
+   intersect(x$gene_ID, y$gene_ID) %>% 
+     length()
+}
+
+find_overlap(
+  SimpleTidy_module = "9",
+  WGCNA_module = "3"
+)
+```
+
+```{r}
+module_combinations <- expand.grid(
+   SimpleTidy_module = unique(my_network_modules$module),
+   WGCNA_module = unique(module_df$module)
+)
+
+membership_overlap <- mapply(FUN = find_overlap, 
+       module_combinations$SimpleTidy_module, 
+       module_combinations$WGCNA_module) %>% 
+  as.data.frame() %>% 
+  rename(overlap = ".") %>% 
+  cbind(module_combinations)
+
+head(membership_overlap)
+```
+
+
+```{r}
+membership_overlap_annotated <- membership_overlap %>% 
+  mutate(Module = paste0("ME", WGCNA_module)) %>% 
+  inner_join(module_df_colors, by = "Module") %>% 
+  inner_join(module_peak_exp, by = c("SimpleTidy_module" = "module"))
+
+head(membership_overlap_annotated)
+```
+
+
+## Alluvial plot
+
+```{r}
+membership_overlap_annotated %>% 
+  mutate(peak_exp = as.character(peak_exp)) %>% 
+  mutate(stage = case_when(
+    str_detect(peak_exp, "MG|Br|Pk") ~ str_sub(peak_exp, start = 1, end = 2),
+    T ~ peak_exp
+  )) %>% 
+  mutate(stage = factor(stage, levels = c(
+   "5 DPA",
+   "10 DPA",
+   "20 DPA",
+   "30 DPA",
+   "MG",
+   "Br",
+   "Pk",
+   "LR",
+   "RR"
+  ))) %>% 
+  ggplot(aes(y = overlap, 
+           axis1 = as.factor(SimpleTidy_module), 
+           axis2 = colors)) +
+  geom_alluvium(aes(fill = stage), alpha = 0.8) +
+  geom_stratum(fill = "grey70", color = "grey30", width = 0.05) +
+  scale_x_discrete(labels = c("Simple Tidy", "WGCNA"),
+                   limits = c("Simple Tidy", "WGCNA"),
+                   expand = c(0.01, 0.01)) +
+  scale_fill_manual(values = viridis(9, option = "D")[c(-4, -8)]) +
+  labs(x = "method",
+       y = "number of genes",
+       fill = "peak\nexpression") +
+  theme_minimal() +
+  theme(
+    legend.position = "bottom",
+    text = element_text(size = 14),
+    axis.text = element_text(color = "black"),
+    panel.grid = element_blank()
+  ) +
+  coord_flip()
+
+ggsave("../Results/WGCNA_tidy_memebership.svg", height = 3, width = 8, bg = "white")
+ggsave("../Results/WGCNA_tidy_memebership.png", height = 3, width = 8, bg = "white")
+```
+
