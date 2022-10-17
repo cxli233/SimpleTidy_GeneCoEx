@@ -130,14 +130,114 @@ The ribbons are also color coded by their peak expression.
 As you can see, large blocks of genes 'flow' between modules detected by the two methods. 
 In some cases, two methods detected modules that share practically the same membership. 
 
+# WGCNA - tepary leaf heat stress time course 
+I also benchmarked the 2nd use case concerning tepary heat stress time course as well. 
+In this case, I did something slightly different. 
+I constrained the WGCNA analysis to use the *same* genes that I used for co-expression in Li's method. 
+The tutorial I followed does not come with a gene selection method, which implies the entire transcriptome can go into WGCNA. 
+In contrast, in Li's method, there is a gene selection section before going into gene co-expression. 
+The methods I used is high variance gene and (or) high F statistics genes. 
+For more info, refer to [gene selection section](https://github.com/cxli233/SimpleTidy_GeneCoEx/blob/main/Stress_time_course_example.md#gene-selection).
 
+In this benchmarking experiment, I will be only using genes that are either high variance or high F in WGCNA. 
 
+## Power selection
+Agian, I follow the [tutorial](https://bioinformaticsworkbook.org/tutorials/wgcna.html#gsc.tab=0). 
 
+![Tepary diagnostic stats](https://github.com/cxli233/SimpleTidy_GeneCoEx/blob/main/Results/WGCNA_tepary_power.svg)
 
+The power curve on the left look a bit funny. It might be due to we are constraining the genes we put into WGCNA. 
+But regardless the reason, both curves stablized at a power of 16. So, I picked 16 and roll with it. 
 
+## Module detection 
+After gene co-expression modules are detected, I looked at their correspondence with the treatments.  
+![Tepary WGCNA heatmap.z](https://github.com/cxli233/SimpleTidy_GeneCoEx/blob/main/Results/WGCNA_tepary_heatmap.z.svg) 
 
+In this heatmap, the big columns indicate the control vs heat stress treatments. 
+Each row is a module, which is also annotated by the colors on the right. 
+Each column is a time point. 
 
+For a comparison, I can pull out the heat map for Li's method as well:
 
+![Tepary_Li_heatmap](https://github.com/cxli233/SimpleTidy_GeneCoEx/blob/main/Results/Tepary_module_heatmap.svg)
 
+As you can see, when the genes are pre-selected, the overall pattern between two methods are quite similar. 
+In this case, Li's method detected more modules. 
+
+## Module QC
+We have some bait genes, all involved in trehalose. 
+
+1. Phacu.CVR.003G017200	TPS6
+2. Phacu.CVR.003G183300	TPS11
+3. Phacu.CVR.009G053300	TPSJ
+4. Phacu.CVR.002G288900	TPSJ 
+
+Let's check which module(s) they are assigned to.  
+
+It turns out there are placed into different modules (modules 7, 8, and 11). 
+This is not necessarily a problem, because the expression patterns of these 3 modules are somewhat similar, according to the heatmap. 
+
+We can graph a few modules to check. 
+We will do Modules 7, 8, and 11 because that where our baits are. 
+The corresponding 'colors' are light green, light yellow, and yellow. 
+
+![Tepary_WGCNA_line_graphs](https://github.com/cxli233/SimpleTidy_GeneCoEx/blob/main/Results/WGCNA_tepary_module_line_plots.svg)
+
+In this figure, each large row is the control or heat stress treatment. 
+Each big column is a module. The x-axis is time points. 
+Each thin grey line is an individual gene. Thick black lines are the average of grey lines in each facet. 
+y-axis values are z score, which is adjusted to the mean and standard deviation of each gene, that is $z = (x - mean) \over sd(x)$. 
+
+It looks less spiky than the tomato WGCNA line graphs. Perhaps contraining the genes going into WGCNA helps. 
+We will come back to quantifying module tightness between the two methods later.
+
+## Module correspondence between two methods
+Next I looked at how do modules detected by one method map to those detected by the other method. 
+To do so, I correlated every modules detected by WGCNA to every module detected by Li's method. Results are shown below:
+
+![Tepary_correspondance](https://github.com/cxli233/SimpleTidy_GeneCoEx/blob/main/Results/Tepary_correspondance.svg)
+
+In this heatmap, each row is a module detected by WGCNA, which is also annotated by the color strip on the left. 
+Each column is a module detected by Li's method. 
+Color strips on the right and bottom annotate the peak time point of these modules. 
+The colors indicate correlation coefficient r.
+A high r value indicates the modules have very similar expression pattern, and thus a corresponding module between two methods.
+
+This might look a bit messy at first glance, but it actually makes a lot of sense. 
+In the diurnal sense, the last time point of the experiment (24 hr) is very similar to the first time point (1 hr). 
+So it makes sense that modules peak at the last time point also correlate well with modules that peak at the first time point.  
+
+## Membership correspondence between two methods
+Next, in addition to looking at how modules map to each other between methods, I look at how genes 'flow' between modules detected by the two methods. 
+In other words, do the methods detect modules that contains the same genes?
+
+![WGCNA_tepary_tidy_memebership](https://github.com/cxli233/SimpleTidy_GeneCoEx/blob/main/Results/WGCNA_tepary_tidy_memebership.png)
+
+In this alluvial plot, the top row is modules detected by WGCNA, the lower row is modules detected by Li's method. 
+Each grey box is a module. Each ribbon is a block of genes shared by modules across the two methods. 
+The ribbons are also color coded by the time point their expression peaked. 
+
+While there are a lot of n-to-n correspondence, large blocks of genes 'flow' between corresponding modules detected by both methods. 
+In some cases, two methods detected modules that share practically the same membership.
+
+# Tightness of module 
+To evaluate module tightless between both methods, I used a version of the squared error loss, where tigher modules have lower squared errors. 
+The squared loss function is widely used in statistics and machine learning. 
+The squred loss function is defined by 
+     ![squared loss function](https://wikimedia.org/api/rest_v1/media/math/render/svg/cf4beff1dc104f16784ac54e594efbdaa72480b6)
+
+To adabt the squared loss function to this context, I modified the loss function as:
+
+For gene $i$ and treatment $j$ in module $m$,
+the mean sum of squares of such module $m$, i.e., $msq_m$ is computed as:
+     
+$$msq_m = { \sum \left( z_{ij} - mean \left( z_i \right)_j \right)^2 \over n_m }$$ 
+
+where $z_{ij}$ is the z score of each gene at each treatment, 
+$n_m$ is the total number of genes in each module, 
+such that the sum of squares is normalized to number of genes in each module, 
+and thus mean sum of squares. 
+
+## Tomato dataset 
 
 
