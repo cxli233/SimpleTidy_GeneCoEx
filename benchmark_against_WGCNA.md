@@ -267,9 +267,23 @@ Modules are color coded by which method they are deteced by (WGCNA vs Simple Tid
 Again we see that Li's method detected modules that are tighter, as quantified by a lower loss function value. 
 (Median<sub>Li</sub> = 1.71; Median<sub>WGCNA</sub> = 2.85; P = 3.1e-5, Wilcoxon Rank Sum Test).
 In this case, there is a mild correlation between loss function value and module size, 
-indicating both methods could benefit from higher resoltion or more module separation. 
-However, even after controlling for module size, Li's method returns lower loss than WGCNA 
-(estimated marginal means: 1.99 95% CI [1.64 - 2.34] vs 2.94 95% CI [1.54 - 3.34], P = 0.0008, ANCOVA). 
+indicating both methods could benefit from higher resoltion or more module separation.
+
+We can compare both methods after controling for module size. 
+This can be achieved by fitting a linear model with module size as a covariate, i.e., 
+
+`msq ~ module_size + method`,
+
+then pass the model to analysis of covariance (ANCOVA). 
+
+| terms     | R^2 | F  | P(>F) |
+|:---------:|:---:|:--:|:-----:|
+|module size|0.28 | 21 | 3.3e-5|
+| method    |0.17 | 13 | 8e-4  |
+|Residuals  |0.55 |    |       |
+
+Even after controlling for module size, Li's method returns lower loss than WGCNA (P = 8e-4, ANCOVA).
+Estimated marginal means after controlling for module sizes are 1.99 95% CI [1.64 - 2.34] vs 2.94 95% CI [1.54 - 3.34]. 
 
 # Discussion and Conclusion
 The potential reason underlying differences in module tightness might be due to the module detection methods. 
