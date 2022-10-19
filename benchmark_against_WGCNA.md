@@ -272,18 +272,15 @@ indicating both methods could benefit from higher resoltion or more module separ
 We can compare both methods after controling for module size. 
 This can be achieved by fitting a linear model with module size as a covariate, i.e., 
 
-`msq ~ module_size + method`,
+`msq ~ (1|module_size) + method`,
 
 then pass the model to analysis of covariance (ANCOVA). 
+The `(1|module_size)` syntax declares module size as a random effect in the linear model, which controls for the effect of module size on moduel tightness. 
 
-| terms     | R^2 | F  | P(>F) |
-|:---------:|:---:|:--:|:-----:|
-|module size|0.28 | 21 | 3.3e-5|
-| method    |0.17 | 13 | 8e-4  |
-|Residuals  |0.55 |    |       |
+Even after controlling for module size, Li's method returns lower loss than WGCNA (F = 8.6, P = 0067, ANCOVA).
+Differences in estimated marginal means after controlling for module sizes are:
 
-Even after controlling for module size, Li's method returns lower loss than WGCNA (P = 8e-4, ANCOVA).
-Estimated marginal means after controlling for module sizes are 1.99 95% CI [1.64 - 2.34] vs 2.94 95% CI [1.54 - 3.34]. 
+`Simple Tidy - WGCNA` = -0.939, CL = [-1.6, -0.276].  
 
 # Discussion and Conclusion
 The potential reason underlying differences in module tightness might be due to the module detection methods. 
