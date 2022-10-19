@@ -277,7 +277,7 @@ This can be achieved by fitting a linear model with module size as a covariate, 
 then pass the model to analysis of covariance (ANCOVA). 
 The `(1|module_size)` syntax declares module size as a random effect in the linear model, which controls for the effect of module size on moduel tightness. 
 
-Even after controlling for module size, Li's method returns lower loss than WGCNA (F = 8.6, P = 0067, ANCOVA).
+Even after controlling for module size, Li's method returns lower loss than WGCNA (F = 8.6, P = 0.0067, ANCOVA).
 Differences in estimated marginal means after controlling for module sizes are:
 
 `Simple Tidy - WGCNA` = -0.939, CL = [-1.6, -0.276].  
