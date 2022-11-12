@@ -128,7 +128,7 @@ Metadata %>%
   count()
 ```
 According to the metadata, there are 16 developmental stages. 
-According to the paper, the order of the developmental statges are:
+According to the paper, the order of the developmental stages are:
 
 1. Anthesis
 2. 5 DAP
