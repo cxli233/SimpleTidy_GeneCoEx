@@ -3,18 +3,17 @@
 
 # Table of contents
 
-1. Introduction
-2. Dependencies
-3. Data
-4. Batch Effect Correction
-5. Metabolite co-abundance network
-6. Build network object
-7. Detect co-abundance modules
-8. Network graph
-9. Cell type classfication
-10. Pull out neighbors
-11. Heat map
-12. UMAP
+1. [Introduction](https://github.com/cxli233/SimpleTidy_GeneCoEx/blob/main/Metabolomics_analyses.md#introduction)
+2. [Dependencies](https://github.com/cxli233/SimpleTidy_GeneCoEx/blob/main/Metabolomics_analyses.md#dependencies)
+3. [Data](https://github.com/cxli233/SimpleTidy_GeneCoEx/blob/main/Metabolomics_analyses.md#data)
+4. [Batch Effect Correction](https://github.com/cxli233/SimpleTidy_GeneCoEx/blob/main/Metabolomics_analyses.md#batch-effect-correction)
+5. [Metabolite co-abundance network](https://github.com/cxli233/SimpleTidy_GeneCoEx/blob/main/Metabolomics_analyses.md#metabolite-co-abundance-analysis)
+6. [Build network object](https://github.com/cxli233/SimpleTidy_GeneCoEx/blob/main/Metabolomics_analyses.md#build-network-object)
+7. [Detect co-abundance modules](https://github.com/cxli233/SimpleTidy_GeneCoEx/blob/main/Metabolomics_analyses.md#detect-co-abundance-modules)
+8. [Network graph](https://github.com/cxli233/SimpleTidy_GeneCoEx/blob/main/Metabolomics_analyses.md#network-graph)
+9. [Pull out neighbors](https://github.com/cxli233/SimpleTidy_GeneCoEx/blob/main/Metabolomics_analyses.md#pull-out-neighbors-of-known-compounds)
+10. [Heat map](https://github.com/cxli233/SimpleTidy_GeneCoEx/blob/main/Metabolomics_analyses.md#heat-map)
+11. [UMAP](https://github.com/cxli233/SimpleTidy_GeneCoEx/blob/main/Metabolomics_analyses.md#umap)
 
 # Introduction
 This script uses the `Simple Tidy GeneCoEx` workflow to analyze single cell metabolomics data. 
@@ -669,9 +668,9 @@ metabolomics_long_batch_module_reordered %>%
 #ggsave("../Results/Metabolomics/feature_cell_heatmap.svg", height = 6, width = 9, bg = "white")
 ggsave("../Results/Metabolomics/feature_cell_heatmap.png", height = 9, width = 9, bg = "white")
 ```
-![Giant_heatmap](https://github.com/cxli233/SimpleTidy_GeneCoEx/blob/main/Results/Metabolomics/feature_cell_heatmap.svg)
+![Giant_heatmap](https://github.com/cxli233/SimpleTidy_GeneCoEx/blob/main/Results/Metabolomics/feature_cell_heatmap.png)
 
-# UMAP and assign cell type 
+# UMAP 
 We have all the clusters, maybe we can make a UMAP and assign cell types 
 
 ## PCA
