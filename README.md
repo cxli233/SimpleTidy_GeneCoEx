@@ -59,7 +59,7 @@ The goal of this workflow is identify genes co-expressed with known genes of int
 We will be using the [Shinozaki et al., 2018](https://www.nature.com/articles/s41467-017-02782-9 ) tomato fruit developmental transcriptomes as our practice data.
 This dataset contains 10 developmental stages and 11 tissues. 
 The goal for this example is to identify genes co-expressed with known players of fruit ripening. 
-The expression matrix is available [online](https://doi.org/10.5281/zenodo.7117357) as a .gz file. 
+The expression matrix is available [online](https://zenodo.org/record/7536040) as a .gz file. 
 You can gunzip it and move it into the `Data/` directory. 
 
 # Dependencies 
@@ -82,7 +82,7 @@ The rest of the packages are mainly for data visualization and not required for 
 The package `readxl` is only required if you have any files in `.xlsx` or `.xlx` format (anything only Excel readable). 
 
 The `Scripts/` directory contains `.Rmd` files that generate the graphics shown below. 
-It requires R, RStudio, and the rmarkdown package. 
+It requires R, RStudio, and the `rmarkdown` package. 
 
 * R: [R Download](https://cran.r-project.org/bin/)
 * RStudio: [RStudio Download](https://www.rstudio.com/products/rstudio/download/)
@@ -94,7 +94,7 @@ The workflow requires 3 input.
 
 1. Gene expression matrix 
 2. Metadata 
-3. Bait genes (genes involved in the biological process of interest from previous studies) 
+3. Bait genes (genes involved in the biological process of interest from previous studies) - recommended, but not required. 
 
 ## Gene expression matrix
 Many software can generate gene expression matrix, such as [Cufflinks](http://cole-trapnell-lab.github.io/cufflinks/), [kallisto](https://pachterlab.github.io/kallisto/about), and [STAR](https://github.com/alexdobin/STAR). 
@@ -111,9 +111,9 @@ dim(Exp_table)
 ```
 
 ```
-# [1] 66880 484
+# [1] 32496 484
 ```
-Looks like there are 66880 genes and 484 columns. Since the 1st column is gene IDs, there are total of 483 libraries.
+Looks like there are 32496 genes and 484 columns. Since the 1st column is gene IDs, there are total of 483 libraries.
 
 ## Metadata
 Metadata are *very* helpful for any gene expression analyses. 
@@ -152,6 +152,8 @@ For the purpose of this example, we will just use two bait genes.
 The gene IDs for these two genes are also recorded in this small table. 
 For an actual study, the bait gene list could be very long. 
 You would probably include functional annotations and references as columns of the bait gene table.
+Bait genes are helpful, but they are not absolutely required. 
+For a workflow without using any bait gene information, see this [script](https://github.com/cxli233/SimpleTidy_GeneCoEx/blob/main/Scripts/SimpleTidy_GeneCoEx_no_bait.Rmd) 
 
 # Understanding the experimental design
 Before I start doing any analyses I would first try to wrap my head around the experimental design. 
@@ -276,26 +278,10 @@ pc_importance <- as.data.frame(t(summary(my_pca)$importance))
 head(pc_importance, 20)
 ```
 
-```
-## $1 Standard deviation
-## $2 Proportion of Variance
-## $3 Cumulative Proportion
-
-## PC1	55.856580	0.43662	0.43662	
-## PC2	27.601642	0.10662	0.54323	
-## PC3	18.916665	0.05008	0.59331	
-## PC4	15.105094	0.03193	0.62524	
-## PC5	13.465655	0.02538	0.65062	
-## PC6	11.751300	0.01933	0.66994	
-## PC7	9.454201	0.01251	0.68245	
-## PC8	8.560489	0.01026	0.69271	
-## PC9	8.193150	0.00939	0.70210	
-## PC10	8.105687	0.00919	0.71129
-```
 `prcomp()` performs PCA for you, given a numeric matrix, which is just the transposed `Exp_table_log_wide`, but without the gene ID column. 
 `as.data.frame(t(summary(my_pca)$importance))` saves the standard deviation and proportion of variance into a data table. 
-In this case, the 1st PC accounts for 43% of the variance in this experiment.
-The 2nd PC accounts for 10% of the variance.  
+In this case, the 1st PC accounts for 34% of the variance in this experiment.
+The 2nd PC accounts for 18% of the variance.  
 
 ## Graph PCA plot 
 To make a PCA plot, we will graph the data stored in `my_pca$x`, which stores the coordinates of each library in PC space. 
@@ -439,6 +425,8 @@ There are multiple steps. Let's go over them one by one.
 
 ## Average up the reps 
 We will first average up the reps to the level of tissue-stage combination. 
+This step is also not required. 
+For a workflow without pre-averaging reps, see this [script](https://github.com/cxli233/SimpleTidy_GeneCoEx/blob/main/Scripts/SimpleTidy_GeneCoEx_no_preaveraging.Rmd).  
 We are interested in the biological variation among tissue-stage combination, and less interested in the noise among reps of the same treatment. 
 Again, this is a *tidyverse based workflow*. 
 
@@ -464,7 +452,7 @@ This could take a moment. This step is doing a lot of mean calculations.
 
 ## Z score
 Once we averaged up the reps, we will standardize the expression pattern using z score. 
-A z score is the difference from mean over the standard deviation, i.e., $z = (x - mean) \over sd$
+A z score is the difference from mean over the standard deviation, i.e., $z = { (x - mean) \over sd }$
 
 It standardize the expression pattern of each gene to mean = 0, sd = 1. 
 It is not absolutely necessary, but I have found including this step to produce results that better capture the underlying biology.
@@ -504,7 +492,7 @@ dim(high_var_genes)
 ```
 
 ```
-## [1] 22271     2
+## [1] 10821     2
 ```
 
 This chunk of code computes the variance of logTPM for each gene. 
@@ -539,12 +527,10 @@ high_var_genes5000 %>%
 
 ```
 ## A tibble:1 × 2
-## A tibble:6 × 2
+## A tibble:1 × 2
 ```
 
 Both are present in the top 5000, so that's good. 
-Note that incidentally, this gene expression matrix is at the level of isoforms. 
-I would do it on only the representative gene models (longest gene model), but this particular matrix that I have access to is quantifying at the level of isoforms.
 
 ```R
 Exp_table_long_averaged_z_high_var <- Exp_table_long_averaged_z %>% 
@@ -762,15 +748,6 @@ edge_table %>%
   slice_min(order_by = abs(r), n = 10)
 ```
 
-```
-## A tibble:10 × 6 
-## from                  to                    r         t         p.value     FDR
-## Solly.M82.02G011270.2	Solly.M82.03G001400.2	0.1958725	1.808737	0.03707863	0.04999967
-## A tibble:10 × 6
-## from                  to                    r         t         p.value     FDR
-## Solly.M82.05G004690.1	Solly.M82.12G000310.1	0.2704730	2.544061	0.006416876	0.009999969
-```
-
 If you cut off the FDR at 0.05, then your r values are 0.196 or larger. 
 If you cut off the FDR at 0.01, then your r values are 0.27  or larger. 
 Not very high, but it is what it is. 
@@ -785,19 +762,6 @@ Because this selection method is based on empirical observations, I argue this i
 
 ```R
 edge_table %>% 
-  filter(str_detect(from, "Solly.M82.03G005440") &
-           str_detect(to,"Solly.M82.03G005440")) 
-```
-
-```
-## A tibble:10 × 6 
-## from                  to                    r         t         p.value       FDR
-## Solly.M82.03G005440.1	Solly.M82.03G005440.2	0.9173865	20.87271	7.402139e-35	1.127654e-32
-```
-Different isoforms of the same gene is highly correlated, so that's good to see. 
-
-```R
-edge_table %>% 
   filter(str_detect(from, "Solly.M82.10G020850") &
            str_detect(to,"Solly.M82.03G005440") |
          str_detect(from, "Solly.M82.03G005440") &
@@ -807,10 +771,10 @@ edge_table %>%
 ```
 ## A tibble:6 × 6 
 ## from                  to                    r         t         p.value       FDR
-## Solly.M82.03G005440.1	Solly.M82.10G020850.1	0.7872474	11.560813	3.356543e-19  4.772911e-18
+## Solly.M82.03G005440.5	Solly.M82.10G020850.1	0.7665624	10.80947	9.591108e-18    9.021105e-17
 ```
 These two bait genes (PG and PSY1) are chosen based on that they are involved in the same process.
-They have a r value of from 0.73 to 0.78, which is rather high, considering at FDR < 0.01, r cutoff was 0.27. 
+They have a r value of 0.765, which is rather high, considering at FDR < 0.01, r cutoff was 0.27. 
 
 Base on this empirical observation, we can say we cut off at the vicinity of 0.73, maybe r > 0.7. 
 Note that this is way more stringent than cutting off at FDR < 0.01 (r > 0.27). 
@@ -886,9 +850,9 @@ dim(edge_table_select)
 ```
 
 ```
-## [1] 1230395       6
+## [1] 1567354       6
 ```
-We are now down to 1,230,395 edges. Still **A LOT**. 
+We are now down to 1,567,354 edges. Still **A LOT**. 
 
 Is this a perfect cutoff calling method? No.
 Is this method grounded in sound understanding of statistics, heuristics, and guided by the biology? Yes.
@@ -896,14 +860,14 @@ Is this method grounded in sound understanding of statistics, heuristics, and gu
 Before we move forward, we can examine the correlation between two bait genes using a scatter plot. 
 ```R
  Bait_cor_by_stage <- z_score_wide %>% 
-  filter(gene_ID == "Solly.M82.10G020850.1" |
+  filter(gene_ID == "Solly.M82.10G020850.5" |
            gene_ID == "Solly.M82.03G005440.1") %>% 
   select(-gene_ID) %>% 
   t() %>% 
   as.data.frame() %>% 
   mutate(`Sample Name` = row.names(.)) %>% 
   inner_join(PCA_coord, by = "Sample Name") %>% 
-  ggplot(aes(x = Solly.M82.03G005440.1,
+  ggplot(aes(x = Solly.M82.03G005440.5,
              y = Solly.M82.10G020850.1)) +
   geom_point(aes(fill = stage), color = "grey20", 
              size = 2, alpha = 0.8, shape = 21) +
@@ -918,14 +882,14 @@ Before we move forward, we can examine the correlation between two bait genes us
   )
 
 Bait_cor_by_tissue <- z_score_wide %>% 
-  filter(gene_ID == "Solly.M82.10G020850.1" |
+  filter(gene_ID == "Solly.M82.10G020850.5" |
            gene_ID == "Solly.M82.03G005440.1") %>% 
   select(-gene_ID) %>% 
   t() %>% 
   as.data.frame() %>% 
   mutate(`Sample Name` = row.names(.)) %>% 
   inner_join(PCA_coord, by = "Sample Name") %>% 
-  ggplot(aes(x = Solly.M82.03G005440.1,
+  ggplot(aes(x = Solly.M82.03G005440.5,
              y = Solly.M82.10G020850.1)) +
   geom_point(aes(fill = tissue), color = "grey20", 
              size = 2, alpha = 0.8, shape = 21) +
@@ -988,11 +952,11 @@ dim(node_table)
 ```
 
 ```
-## [1] 4880
+## [1] 4978
 ```
 
-We have 4880 genes in this network, along with 1,230,395 edges.
-Note that 4880 is less than the 5000 top var genes we put in, because we filtered out some edges. 
+We have 4978 genes in this network, along with 1,567,354 edges.
+Note that 4978 is less than the 5000 top var genes we put in, because we filtered out some edges. 
 
 Now let's make the network object. 
 ```R
@@ -1161,13 +1125,13 @@ my_network_modules %>%
 ```
 
 ```
-## A tibble:18 × 2 Groups:module [18]
-## sum 4551	
+## A tibble:16 × 2 Groups:module [16]
+## sum 4378	
 ```
 
-Looks like there are ~18 modules that have 5 or more genes, comprising ~4550 genes. 
+Looks like there are ~16 modules that have 5 or more genes, comprising ~4378 genes. 
 Not all genes are contained in modules. They are just lowly connected genes. 
-4550/4880 = 93% of the genes in the network are assigned to clusters with 5 or more genes. 
+4378/4978 = 88% of the genes in the network are assigned to clusters with 5 or more genes. 
 Note that Leiden clustering has a stochastic aspect. The membership maybe slightly different every time you run it. 
 Moving forward we will only use modules that have 5 or more genes. 
 
@@ -1190,13 +1154,13 @@ One way to QC these modules is looking at our bait genes.
 ```R
 my_network_modules %>% 
   filter(gene_ID == "Solly.M82.10G020850.1" |
-           gene_ID == "Solly.M82.03G005440.1")
+           gene_ID == "Solly.M82.03G005440.5")
 ```
 
 ```
 ## gene_ID  module   functional_annotation
-## Solly.M82.03G005440.1	9	PHYTOENE SYNTHASE		
-## Solly.M82.10G020850.1	9	Pectin lyase-like superfamily protein
+## SSolly.M82.03G005440.5	5	PHYTOENE SYNTHASE	
+## Solly.M82.10G020850.1	5	Pectin lyase-like superfamily protein
 ```
 It looks like they are in the same module, very good to see. 
 Remember, they are correlated with a r > 0.7; they should be in the same module. 
@@ -1238,8 +1202,8 @@ It will be too much to look at if graph all the modules, so let's just pick 2.
 
 I picked: 
 
-* module 5, which is most highly expressed in 5 DPA - an early expressing cluster.
-* module 9, where our bait genes are - a late expressing cluster. 
+* module 1, which is most highly expressed in 5 DPA - an early expressing cluster.
+* module 5, where our bait genes are - a late expressing cluster. 
 
 ```R
 module_line_plot <- Exp_table_long_averaged_z_high_var_modules %>% 
@@ -1255,14 +1219,14 @@ module_line_plot <- Exp_table_long_averaged_z_high_var_modules %>%
     str_detect(dev_stage, "RR") ~ 9
   )) %>% 
   mutate(dev_stage = reorder(dev_stage, order_x)) %>% 
-  filter(module == "9" |
+  filter(module == "1" |
            module == "5") %>% 
   ggplot(aes(x = dev_stage, y = z.score)) +
   facet_grid(module ~ tissue) +
   geom_line(aes(group = gene_ID), alpha = 0.3, color = "grey70") +
   geom_line(
     data = modules_mean_z %>% 
-      filter(module == "9" |
+      filter(module == "1" |
                module == "5") %>% 
       mutate(order_x = case_when(
         str_detect(dev_stage, "5") ~ 1,
@@ -1366,8 +1330,8 @@ modules_mean_z$mean.z %>% summary()
 ```
 
 ```
-#  Min. 1st Qu.  Median    Mean 3rd Qu.    Max. 
-# -1.7844 -0.6261 -0.2213  0.0000  0.6420  3.3779 
+##   Min. 1st Qu.  Median    Mean 3rd Qu.    Max. 
+## -1.7577 -0.6075 -0.1912  0.0000  0.6265  3.6924 
 ```
 You can see that the distribution of averaged z scores are more or less symmetrical from the 1st to 3rd quartiles. 
 ```R
@@ -1376,9 +1340,9 @@ quantile(modules_mean_z$mean.z, 0.95)
 
 ```
 ##      95% 
-## 1.482264
+## 1.442228 
 ```
-The 95th percentile of averaged z score is 1.48. We can probably roughly clipped the z-scores at 1.5 or -1.5
+The 95th percentile of averaged z score is 1.44. We can probably roughly clipped the z-scores at 1.5 or -1.5
 
 ```R
 modules_mean_z <- modules_mean_z %>% 
@@ -1616,7 +1580,7 @@ For the sake of this example, let's just a couple genes from other clusters as w
 ```R
 neighbors_of_bait <- c(
   neighbors(my_network, v = "Solly.M82.10G020850.1"), # PG
-  neighbors(my_network, v = "Solly.M82.03G005440.1"), # PSY1 
+  neighbors(my_network, v = "Solly.M82.03G005440.5"), # PSY1 
   neighbors(my_network, v = "Solly.M82.01G041430.1"), #  early fruit - SAUR
   neighbors(my_network, v = "Solly.M82.03G024180.1") # seed specific - "oleosin"
 ) %>% 
@@ -1626,7 +1590,7 @@ length(neighbors_of_bait)
 ```
 
 ```
-## [1] 2164
+## [1] 2227
 ```
 
 We can make a sub-network object. 
@@ -1649,12 +1613,12 @@ dim(subnetwork_edges)
 ```
 
 ```
-## [1] 2109
-## [1] 5300    6
+## [1] 2195
+## [1] 5714    6
 ```
 We can constrain the edges such that both the start and end of edges are neighbors of baits. 
 I also filtered for highly correlated neighbors (top 5 edges/node based on r value). 
-We still have 5300 edges and 2109 nodes. 
+We still have 5714 edges and 2195 nodes. 
 Note that the most correlated edges for each bait many have overlaps, so the total number of edges remaining will be less than what you think. 
 
 Then we subset nodes in the network. 
@@ -1665,9 +1629,9 @@ subnetwork_nodes <- node_table %>%
   left_join(my_network_modules, by = "gene_ID") %>% 
   left_join(module_peak_exp, by = "module") %>% 
   mutate(module_annotation = case_when(
-    str_detect(module, "1|5|6|15|18|19|26|48|56|137") ~ "early fruit",
-    module == "8" ~ "seed",
-    module == "9" ~ "ripening",
+    str_detect(module, "114|37|1|14|3|67|19|56") ~ "early fruit",
+    module == "9" ~ "seed",
+    module == "5" ~ "ripening",
     T ~ "other"
   ))
 
@@ -1730,7 +1694,7 @@ And we already did that earlier for the sub-network.
 ```R
 neighbors_of_PG_PSY1 <- c(
   neighbors(my_network, v = "Solly.M82.10G020850.1"), # PG
-  neighbors(my_network, v = "Solly.M82.03G005440.1") # PSY1 
+  neighbors(my_network, v = "Solly.M82.03G005440.5") # PSY1 
 ) %>% 
   unique()  
 
@@ -1738,7 +1702,7 @@ length(neighbors_of_PG_PSY1)
 ```
 
 ```
-## [1] 630
+## [1] 536
 ```
 
 Looks like there are 630 direct neighbors of PG and PSY1. 
