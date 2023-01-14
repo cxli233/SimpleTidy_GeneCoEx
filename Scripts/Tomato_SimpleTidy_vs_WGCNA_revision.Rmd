@@ -197,7 +197,7 @@ WGCNA_power1 <- soft$fitIndices %>%
   geom_point(size = 3, alpha = 0.8, color = "dodgerblue") +
   labs(x = "Soft Threshold (power)",
        y = "Scale Free Topology\nModel Fit signed R^2",
-       title = "Data from Shinozaki et al., 2018") +
+       title = "Data from\nShinozaki et al., 2018") +
   theme_classic() +
   theme(
     text = element_text(size = 14),
