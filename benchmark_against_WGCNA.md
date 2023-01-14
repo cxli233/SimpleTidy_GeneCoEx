@@ -44,6 +44,7 @@ WGCNA requires a matrix with libraries as rows and genes as columns.
 I provided a matrix where the biological replicates were already averaged up to the level of treatments. 
 In this case, the treatments are tissue by developmental stage combinations. 
 I also only used samples collected by hand, not by laser capture. 
+For the purpose of benchmarking, I only used top 5000 variable genes as in the main README page. 
 For more details, please see the [main README page](https://github.com/cxli233/SimpleTidy_GeneCoEx/blob/main/README.md). 
 
 To run WGCNA, I followed this [tutorial](https://bioinformaticsworkbook.org/tutorials/wgcna.html#gsc.tab=0). 
@@ -55,7 +56,7 @@ The math behind it is beyond me.
 
 ![Tomato diagnostic stats](https://github.com/cxli233/SimpleTidy_GeneCoEx/blob/main/Results/WGCNA_tomato_power.svg)
 
-According to the tutorial, a power is picked based on where the diagnostic curves stablize. I went with a power of 9. 
+According to the tutorial, a power is picked based on where the diagnostic curves stablize. I went with a power of 15. 
 
 ## Module detection
 After gene co-expression modules are detected, I looked at their correspondence with the treatments. 
@@ -79,17 +80,17 @@ because genes involved in the same biological process are likely to be co-expres
 I picked two bait genes: 
 
 1. PG: Solly.M82.10G020850.1, involved in making the fruit softer.
-2. PSY1: Solly.M82.03G005440.1, involved in making the fruit red.
+2. PSY1: Solly.M82.03G005440.5, involved in making the fruit red.
 
-They are both in module 3 or "plum1" module, which is good to see. 
+They are both in module "blue", which is good to see. 
 
 We can also graph the z score of genes across a couple modules. 
 ![WGCNA_tomato_module_line_graphs](https://github.com/cxli233/SimpleTidy_GeneCoEx/blob/main/Results/WGCNA_tomato_module_line_plots.png) 
 
 In this figure, each large row is a module. 
-I picked two modules, module ME2 and module ME3, which are early and late development modules, respectively. 
-Note that ME3 is where out bait genes are assigned to. 
-As you can see, the overall trend for ME3 is increasing through development, which is consistent with the known biology. 
+I picked two modules, module blue and module turquiose, which are late and early development modules, respectively. 
+Note that blue is where out bait genes are assigned to. 
+As you can see, the overall trend for blue is increasing through development, which is consistent with the known biology. 
 Each big column is a tissue. The x-axis is developmental stages. 
 Each thin grey line is an individual gene. Thick black lines are the average of grey lines in each facet. 
 y-axis values are z score, which is adjusted to the mean and standard deviation of each gene, that is $z = (x - mean) \over sd(x)$. 
@@ -109,18 +110,15 @@ To do so, I correlated every modules detected by WGCNA to every module detected 
 ![Tomato_correspondence](https://github.com/cxli233/SimpleTidy_GeneCoEx/blob/main/Results/Tomato_correspondance.svg)
 
 Here each row is a WGCNA module. 
-Color strip on the left annotates the names (colors). 
 Each column is a module detected by Li's method. 
-Color strips on the right and bottom annotate the peak developmental stage of these modules. 
 The colors indicate correlation coefficient r. 
 A high r value indicates the modules have very similar expression pattern, and thus a corresponding module between two methods. 
 
-As you can see, there is a clear red signal across the diagonal of this heatmap. 
-Unsurprisingly, if two modules are highly correlated, they are very likely to peak at the same developmental stage, 
-because you might remember in this dataset, the main driver of variation is developmental stages, not tissues. 
-See the [PCA](https://github.com/cxli233/SimpleTidy_GeneCoEx#pca) section of main README for more info.  
+As you can see, there is a clear red signal across the diagonal of this heatmap.    
 
 Obviously, both methods work; both detects modules with similar expression patterns. 
+For example, module blue is highly correlated with module 5; both are upregulated in fruit ripenning. 
+Another example is that module brown is highly correlated with module 9; both are highly enriched in the seeds towards later time points. 
 
 ## Membership correspondence between two methods 
 Next, in addition to looking at how modules map to each other between methods, 
@@ -194,7 +192,7 @@ The corresponding 'colors' are light green, light yellow, and yellow.
 In this figure, each large row is the control or heat stress treatment. 
 Each big column is a module. The x-axis is time points. 
 Each thin grey line is an individual gene. Thick black lines are the average of grey lines in each facet. 
-y-axis values are z score, which is adjusted to the mean and standard deviation of each gene, that is $z = (x - mean) \over sd(x)$. 
+y-axis values are z score, which is adjusted to the mean and standard deviation of each gene, that is $z = { (x - mean) \over sd(x) }$. 
 
 It looks less spiky than the tomato WGCNA line graphs. Perhaps contraining the genes going into WGCNA helps. 
 We will come back to quantifying module tightness between the two methods later.
@@ -252,8 +250,8 @@ and thus mean sum of squares.
 
 Each dot on these graphs is a module. 
 Modules are color coded by which method they are deteced by (WGCNA vs Simple Tidy). 
-On the left, we can see that Li's method detected modules that are tighter, as quantified by a lower loss function value. 
-(Median<sub>Li</sub> = 24.7; Median<sub>WGCNA</sub> = 44.7; P = 3.6e-8, Wilcoxon Rank Sum Test). 
+We can see that for the tomato dataset, the loss functions are very comparable between the two methods. 
+(Median<sub>Li</sub> = 26.1; Median<sub>WGCNA</sub> = 28.7; P = 0.24, Wilcoxon Rank Sum Test). 
 There is only a weak correlation between module size and loss function value. 
 Even small modules detected by WGCNA have higher loss function values, 
 indicating the higher loss is not due to insufficient resolution or insufficient module separation. 
@@ -296,8 +294,7 @@ As a result, highly interconnected modules may imply tighter modules.
 
 In conclusion:
 
-1. WGCNA appears to return more modules and higher resolution without pre-filtering genes. 
-2. Both methods detect gene co-expression modules with similar expression patterns. 
-3. Large blocks of genes are shared between modules detected by the two methods.
-4. The Simple Tidy GeneCoEx method detect tighter modules, as quantified by a mean sum of squares loss function, regardless whether the transcriptome is pre-filtered for high variance or high F genes. 
+1. Both methods detect gene co-expression modules with similar expression patterns. 
+2. Large blocks of genes are shared between modules detected by the two methods.
+3. The Simple Tidy GeneCoEx method can detect tighter modules depending on the dataset, as quantified by a mean sum of squares loss function. 
 
