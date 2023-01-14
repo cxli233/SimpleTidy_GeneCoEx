@@ -59,8 +59,8 @@ The goal of this workflow is identify genes co-expressed with known genes of int
 We will be using the [Shinozaki et al., 2018](https://www.nature.com/articles/s41467-017-02782-9 ) tomato fruit developmental transcriptomes as our practice data.
 This dataset contains 10 developmental stages and 11 tissues. 
 The goal for this example is to identify genes co-expressed with known players of fruit ripening. 
-The expression matrix is available [online](https://zenodo.org/record/7536040) as a .gz file. 
-You can gunzip it and move it into the `Data/` directory. 
+The expression matrix is available [online](https://zenodo.org/record/7536040) as a .zip file. 
+You can unzip it and move it into the `Data/` directory. 
 
 # Dependencies 
 ```R
