@@ -1,6 +1,7 @@
 # Simple Tidy GeneCoEx 
 A simple gene co-expression analyses workflow powered by tidyverse and graph analyses
-TO cite:  Li, C., Deans, N. C., & Buell, C. R. (2023). “Simple Tidy GeneCoEx”: A gene co-expression analysis workflow powered by tidyverse and graph-based clustering in R. The Plant Genome, 16, e20323. https://doi.org/10.1002/tpg2.20323  
+
+To cite:  Li, C., Deans, N. C., & Buell, C. R. (2023). “Simple Tidy GeneCoEx”: A gene co-expression analysis workflow powered by tidyverse and graph-based clustering in R. The Plant Genome, 16, e20323. https://doi.org/10.1002/tpg2.20323  
 
 [![DOI](https://zenodo.org/badge/542221034.svg)](https://zenodo.org/badge/latestdoi/542221034)
 
