@@ -733,10 +733,53 @@ Depending on the sign of t, the upper of lower tail probability is taken.
 Finally, the p values are adjusted for multiple comparisons using FDR. 
 This step can take a while. Turning a large wide table to a long table always takes a while.
 Your computer may not have enough memory to run this step if you put in many genes. 
-In this case we only used 5000 genes, so no problem. 
+In this case we only used 5000 genes, so no problem. This approach is limited to ~30,000 genes.
+
+## Alternate Method to Generate Edge Table for Co-expression networks with  > 30,000 genes
+```R
+# Create an empty dataframe to store the results
+edge_table <- data.frame()
+
+chunk_size <- 100  # Define the chunk size
+
+num_rows <- nrow(cor_matrix_upper_tri) #number of rows in correlation matrix
+num_chunks <- ceiling(num_rows / chunk_size) # number of chunks for data set
+
+for (i in 1:num_chunks) {
+  start <- (i - 1) * chunk_size + 1 
+  end <- min(i * chunk_size, num_rows)
+  
+  # Extract a chunk of rows
+  chunk <- cor_matrix_upper_tri[start:end, ]
+  
+  #Wide to long form
+  chunk <- chunk %>%
+    as.data.frame() %>%
+    mutate(from = row.names(chunk)) %>%
+    pivot_longer(cols = !from, names_to = "to", values_to = "r") %>%
+    filter(is.na(r) == F) %>%
+    filter(from != to)
+  
+  # Add the processed chunk to the result dataframe
+  edge_table <- bind_rows(edge_table, chunk)
+  
+  # Print the current process
+  cat("Processed chunk", i, "of", num_chunks, "\n")
+}
+
+edge_table<-edge_table %>%
+  mutate(t = r*sqrt((number_of_tissue_stage-2)/(1-r^2))) %>%
+  mutate(p.value = case_when(
+    t > 0 ~ pt(t, df = number_of_tissue_stage-2, lower.tail = F),
+    t <=0 ~ pt(t, df = number_of_tissue_stage-2, lower.tail = T)
+  )) %>%
+  mutate(FDR = p.adjust(p.value, method = "fdr"))
+```
+
 
 You can look at various adjusted p value cutoffs and the corresponding r value before proceeding. 
 Let's say we just look at positively correlated genes.
+
 
 ```R
 edge_table %>% 
