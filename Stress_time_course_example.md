@@ -54,7 +54,7 @@ The essence of this workflow is simple and tidy.
 This is by no means the best workflow, but it is conceptually simple if you are familiar with tidyverse. 
 The goal of this workflow is identify genes co-expressed with known genes of interest. 
 
-* Author: Chenxin Li, Postdoctoral Research Associate, Center for Applied Genetic Technologies, University of Georgia
+* Author: Chenxin Li, Ph.D., Assistant Research Scientist at Department of Crop & Soil Sciences and Center for Applied Genetic Technologies, University of Georgia
 * Contact: Chenxin.Li@uga.edu 
 
 ## Example data  
