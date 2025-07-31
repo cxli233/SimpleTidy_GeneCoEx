@@ -55,7 +55,7 @@ This is by no means the best workflow, but it is conceptually simple if you are 
 The goal of this workflow is identify genes co-expressed with known genes of interest. 
 
 * Author: Chenxin Li, Ph.D., Assistant Research Scientist at Department of Crop & Soil Sciences and Center for Applied Genetic Technologies, University of Georgia
-* Contact: Chenxin.Li@uga.edu | [@ChenxinLi2](https://twitter.com/ChenxinLi2)
+* Contact: lichen27@msu.edu | [@chenxinli2.bsky.social](https://bsky.app/profile/chenxinli2.bsky.social)
 
 ## Example data 
 We will be using the [Shinozaki et al., 2018](https://www.nature.com/articles/s41467-017-02782-9 ) tomato fruit developmental transcriptomes as our practice data.
